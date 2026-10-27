@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Photo transfer (web)</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#111;color:#eee;max-width:640px}
+h1{font-size:1.2rem} button,input{font-size:1rem} button{padding:10px 16px;border-radius:8px;border:0;background:#2a7fff;color:#fff}
+button:disabled{opacity:.4} #qr{background:#fff;display:inline-block;padding:10px;border-radius:8px;margin:12px 0}
+#qr img,#qr svg{display:block;width:240px;height:240px} small,.muted{color:#999} .ok{color:#6c6} .bad{color:#f66}
+#log div{font-size:.9rem;margin:4px 0} .box{background:#222;border-radius:10px;padding:12px;margin:12px 0} code{word-break:break-all}
+</style></head><body>
+<h1>Photo transfer</h1>
+<div id="pc" hidden>
+  <div class="box">
+    <b>On this PC</b> (Chrome or Edge). Photos go straight from the phone to the folder you pick; nothing is stored on a server.<br><br>
+    <button id="pick">1. Choose the folder to save into</button> <span id="folder" class="muted"></span>
+  </div>
+  <div class="box" id="step2" hidden>
+    Scan this with the phone camera (or open the link on the phone):<br>
+    <div id="qr"></div><br><code id="link"></code><br><br>
+    <button id="copy">Copy link</button> <button id="again" hidden>New code</button>
+    <div id="state" class="muted"></div>
+  </div>
+  <div id="log"></div>
+</div>
+<div id="phone" hidden>
+  <div class="box"><b id="pstate">Connecting to the PC…</b></div>
+  <div class="box" id="send" hidden>
+    <input id="files" type="file" multiple accept="image/*,video/*"><br><br>
+    <small>Long videos: save them to Files first, then use "Browse" in the picker.</small><br><br>
+    <button id="go">Send to the PC</button> <button id="stop" hidden style="background:#c33">Stop</button>
+    <div id="total" class="muted"></div><div id="plog"></div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+const $=id=>document.getElementById(id), sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]};
+const PIECE=32*1024, HIGH=4*1024*1024;
+const b64u=u8=>btoa(String.fromCharCode(...u8)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const unb64u=s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
+const rnd=n=>b64u(crypto.getRandomValues(new Uint8Array(n)));
+// The handshake text is encrypted with a key that only lives in the link's #fragment, which browsers never send to a server.
+async function aes(key){return crypto.subtle.importKey('raw',unb64u(key),'AES-GCM',false,['encrypt','decrypt']);}
+async function enc(key,obj){const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},await aes(key),new TextEncoder().encode(JSON.stringify(obj))));
+  const out=new Uint8Array(12+ct.length);out.set(iv);out.set(ct,12);return b64u(out);}
+async function dec(key,s){const u=unb64u(s);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(0,12)},await aes(key),u.slice(12))));}
+async function relay(method,room,kind,data){
+  const r=method==='GET'?await fetch(`/api/signal?room=${room}&kind=${kind}`,{cache:'no-store'})
+    :await fetch('/api/signal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room,kind,data})});
+  return r;}
+function gathered(pc){return new Promise(res=>{if(pc.iceGatheringState==='complete')return res();
+  const t=setTimeout(res,4000);pc.addEventListener('icegatheringstatechange',()=>{if(pc.iceGatheringState==='complete'){clearTimeout(t);res();}});});}
+function waitOpen(ch){return new Promise((res,rej)=>{if(ch.readyState==='open')return res();ch.onopen=res;ch.onerror=()=>rej(new Error('connection failed'));});}
+
+// ---------------- PC side ----------------
+async function pcMain(){
+  $('pc').hidden=false;
+  if(!window.showDirectoryPicker){$('pick').disabled=true;$('folder').textContent='This browser cannot save into a folder. Use Chrome or Edge on the PC.';$('folder').className='bad';return;}
+  let dir=null,session=0;
+  $('pick').onclick=async()=>{try{dir=await showDirectoryPicker({mode:'readwrite'});}catch(e){return;}
+    $('folder').textContent=dir.name;$('step2').hidden=false;start();};
+  $('again').onclick=start;
+  async function start(){
+    const me=++session;$('again').hidden=true;$('state').textContent='Preparing…';
+    const pc=new RTCPeerConnection(ICE),ch=pc.createDataChannel('files');ch.binaryType='arraybuffer';
+    const room=rnd(16),key=rnd(16);
+    await pc.setLocalDescription(await pc.createOffer());await gathered(pc);
+    const r=await relay('POST',room,'offer',await enc(key,{sdp:pc.localDescription.sdp,type:'offer'}));
+    if(!r.ok){$('state').textContent='Relay problem: '+await r.text();$('state').className='bad';return;}
+    const link=location.origin+location.pathname+'#'+room+'.'+key;
+    $('link').textContent=link;$('copy').onclick=()=>navigator.clipboard.writeText(link);
+    const q=qrcode(0,'M');q.addData(link);q.make();$('qr').innerHTML=q.createSvgTag({cellSize:4,margin:0});
+    $('state').textContent='Waiting for the phone (this code lasts 5 minutes)…';
+    for(let i=0;i<300&&me===session;i++){
+      const a=await relay('GET',room,'answer');
+      if(a.ok){await pc.setRemoteDescription(await dec(key,await a.text()));break;}
+      await sleep(1000);
+    }
+    if(me!==session)return pc.close();
+    if(pc.signalingState!=='stable'){$('state').textContent='Timed out.';$('again').hidden=false;pc.close();return;}
+    try{await waitOpen(ch);}catch(e){$('state').textContent='Could not connect directly (strict network?). '+e.message;$('state').className='bad';$('again').hidden=false;return;}
+    $('state').textContent='Connected. Send photos from the phone.';$('state').className='ok';
+    receiver(ch,dir);
+    pc.onconnectionstatechange=()=>{if(['disconnected','failed','closed'].includes(pc.connectionState)){$('state').textContent='Phone disconnected.';$('state').className='muted';$('again').hidden=false;}};
+  }
+}
+async function uniqueHandle(dir,name){
+  name=name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/^[ .]+|[ .]+$/g,'')||'file';
+  const dot=name.lastIndexOf('.'),stem=dot>0?name.slice(0,dot):name,ext=dot>0?name.slice(dot):'';
+  for(let n=0;;n++){const cand=n?`${stem} (${n})${ext}`:name;
+    try{await dir.getFileHandle(cand);}catch(e){return [cand,await dir.getFileHandle(cand,{create:true})];}}}
+function receiver(ch,dir){
+  let w=null,name='',got=0,size=0,id=null,queue=Promise.resolve(),row=null;
+  ch.onmessage=e=>{
+    if(typeof e.data==='string'){
+      const m=JSON.parse(e.data);
+      if(m.t==='start'){queue=queue.then(async()=>{
+        const [n,h]=await uniqueHandle(dir,m.name);name=n;w=await h.createWritable();got=0;size=m.size;id=m.id;
+        row=document.createElement('div');row.textContent=n+' …';$('log').prepend(row);});}
+      else if(m.t==='end'){queue=queue.then(async()=>{
+        await w.close();const ok=got===size;w=null;
+        row.textContent=name+(ok?' ✓ received':' ✗ incomplete');row.className=ok?'ok':'bad';
+        ch.send(JSON.stringify({t:ok?'ok':'err',id:m.id}));});}
+    }else{
+      const buf=e.data;queue=queue.then(async()=>{if(!w)return;await w.write(buf);got+=buf.byteLength;
+        if(row&&size)row.textContent=name+' … '+Math.floor(100*got/size)+'%';});
+    }};
+}
+
+// ---------------- Phone side ----------------
+async function phoneMain(room,key){
+  $('phone').hidden=false;const st=m=>$('pstate').textContent=m;
+  try{
+    const o=await relay('GET',room,'offer');
+    if(!o.ok)return st('This link has expired. Make a new code on the PC.');
+    const pc=new RTCPeerConnection(ICE);let ch=null;
+    pc.ondatachannel=e=>{ch=e.channel;ch.binaryType='arraybuffer';};
+    await pc.setRemoteDescription(await dec(key,await o.text()));
+    await pc.setLocalDescription(await pc.createAnswer());await gathered(pc);
+    const r=await relay('POST',room,'answer',await enc(key,{sdp:pc.localDescription.sdp,type:'answer'}));
+    if(!r.ok)return st(r.status===409?'This code was already used. Make a new one on the PC.':'Relay problem.');
+    st('Connecting directly to the PC…');
+    for(let i=0;i<150&&!(ch&&ch.readyState==='open');i++)await sleep(200);
+    if(!(ch&&ch.readyState==='open'))return st('Could not connect (the phone and PC may be on networks that block direct links). Try the Wi-Fi version.');
+    st('Connected ✓');$('send').hidden=false;
+    ch.onclose=()=>{st('Disconnected.');};
+    sender(ch);
+  }catch(e){st('Failed: '+e.message);}
+}
+function sender(ch){
+  let stopped=false;const acks=new Map();
+  ch.onmessage=e=>{const m=JSON.parse(e.data);const f=acks.get(m.id);if(f){acks.delete(m.id);f(m.t==='ok');}};
+  $('stop').onclick=()=>{stopped=true;};
+  $('go').onclick=async()=>{
+    const files=[...$('files').files];if(!files.length)return;
+    stopped=false;$('go').disabled=true;$('stop').hidden=false;
+    const all=files.reduce((n,f)=>n+f.size,0);let done=0;
+    for(const f of files){
+      if(stopped)break;
+      const d=document.createElement('div');d.textContent=f.name+' …';$('plog').appendChild(d);
+      const id=rnd(6);const ack=new Promise(r=>acks.set(id,r));
+      ch.send(JSON.stringify({t:'start',id,name:f.name,size:f.size,mtime:f.lastModified}));
+      let off=0;ch.bufferedAmountLowThreshold=1024*1024;
+      try{
+        while(off<f.size&&!stopped){
+          const blk=await f.slice(off,Math.min(off+1024*1024,f.size)).arrayBuffer();
+          for(let p=0;p<blk.byteLength;p+=PIECE){
+            if(ch.bufferedAmount>HIGH)await new Promise(r=>ch.addEventListener('bufferedamountlow',r,{once:true}));
+            if(ch.readyState!=='open')throw new Error('connection lost');
+            ch.send(blk.slice(p,p+PIECE));
+          }
+          off+=blk.byteLength;
+          d.textContent=f.name+' … '+Math.floor(100*off/Math.max(1,f.size))+'%';
+          $('total').textContent='Total: '+Math.floor(100*(done+off)/Math.max(1,all))+'%';
+        }
+        if(stopped){ch.send(JSON.stringify({t:'end',id}));d.textContent=f.name+' stopped';d.className='bad';break;}
+        ch.send(JSON.stringify({t:'end',id}));
+        const ok=await ack;d.textContent=f.name+(ok?' ✓ sent':' ✗ PC reported a problem');d.className=ok?'ok':'bad';
+      }catch(e){d.textContent=f.name+' ✗ '+e.message;d.className='bad';break;}
+      done+=f.size;
+    }
+    $('go').disabled=false;$('stop').hidden=true;
+  };
+}
+
+const h=location.hash.slice(1).split('.');
+if(h.length===2&&h[0]&&h[1])phoneMain(h[0],h[1]);else pcMain();
+</script></body></html>

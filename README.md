@@ -37,12 +37,31 @@ python -m venv .venv
 Open the link on a phone on the same Wi-Fi. It shows the photos in that folder (tap one to open it; press and hold, then **Save to Photos** puts it in the Photos app). The page also has an **Upload** button that sends photos/videos from the phone (including its Photos library) to `<folder>` itself (or `--inbox`). The GUI has the same thing under **Wi-Fi share…** (shares the "Copy to" folder).
 Safety: the link contains a random token and only photos/videos are served or accepted, but traffic is plain HTTP, so use it on a network you trust. Windows may ask to allow Python through the firewall: choose Private networks. Uploads keep the photo's original date.
 
+**HTTPS (lets the page save many photos straight to Photos):** add `--https`. The first time (and whenever the PC's IP changes, which makes a new certificate), trust the certificate on the iPhone once:
+1. Run `share ... --https`; it prints a second link ending in `/cert`. Open that link in Safari on the phone and tap Allow to download the profile.
+2. Settings > General > VPN & Device Management > the downloaded profile > Install.
+3. Settings > General > About > Certificate Trust Settings > switch on full trust for "phototransfer".
+Then open the main `https://` link. In **Select** mode a **Save to Photos** button appears: tick photos and it opens the iOS share sheet with **Save Images / Save Videos**. The files are loaded into the phone's memory first, so do a few hundred photos at a time, not a whole library. Remove the profile in the same Settings screen when you no longer need it.
+
+**Add to Home Screen:** the page is installable (manifest, icon, standalone mode). In Safari tap Share > Add to Home Screen; it opens full-screen like an app. The link's token is saved in `~/.phototransfer/share_token` and port 8765 is the default, so the same link works after restarting `share` (CLI and GUI share it). `share --new-token` makes a new secret link if the old one leaked; icons and bookmarks must then be re-added. If the port is busy, pass the same `--port` as before. iOS runs the service worker only over `--https`; without it you still get the icon and full-screen mode. Transfers pause when the phone locks or you leave the app.
+
+**Away from home (Tailscale):** nothing is opened on your router and nothing goes through a public server. Install [Tailscale](https://tailscale.com/download) on this PC and on the iPhone, sign in to the same account on both, and keep the PC on with `share` (or the GUI Wi-Fi window) running. `share` then prints a second link starting `http://100.…`; open that one on the phone on mobile data or any Wi-Fi. Tailscale encrypts the traffic, so plain HTTP is fine there. Limits: the page's "Save to Photos" button needs HTTPS and so does not show on this link (use Select + ZIP); if Windows blocks the connection, allow Python in the firewall for the Tailscale network (it may count as Public).
+
 Re-running the same `copy` command skips finished files and resumes interrupted ones (`*.part`).
 `--by-date` files by modified date as `YYYY/YYYY-MM/name`; a name used twice gets its device folder as a prefix.
 `gui` opens a window (tkinter, no extra dependencies): the camera roll as a grid of 200 px previews grouped by day (newest first), a Photos/Videos filter, a From/To date filter, a destination picker, Organize by date, a Parallel setting, a progress bar and Cancel. Cancel keeps the `.part` file, so a re-run resumes.
 Click a photo to select it (Shift-click selects a range; click a day heading to select that whole day). Hover a photo to see its name, date and size.
 Previews load only for the photos on screen and are cached in `~/.phototransfer/thumbs`, so reopening is fast. HEIC needs `pillow-heif` (installed with the app). Videos and very large originals (>40 MB) show a grey box with the file type instead of a preview.
 `--source-dir <folder>` swaps the phone for a local folder, so you can try everything without a device.
+
+## Tray app (no window, no terminal)
+`python -m phototransfer tray [folder]` (also what `PhoneTransfer.exe` does when started with no arguments) keeps the Wi-Fi share running from a tray icon: left-click shows the QR code, right-click has Copy link, the Tailscale link, Open photos folder, Open full window (USB copy), **Start with Windows**, and Quit. It shares the GUI's "Copy to" folder. A balloon says when files arrive.
+Build the single file: `pip install -e .[dev]`, then
+`pyinstaller --noconfirm --onefile --noconsole --name PhoneTransfer --collect-all pymobiledevice3 --collect-all pillow_heif --hidden-import pystray._win32 run_tray.py` → `dist\PhoneTransfer.exe` (~90 MB, first start takes ~15 s while it unpacks). Add one firewall rule for that .exe and it keeps working wherever you move it.
+
+## Website version (`web/`)
+A static page plus one tiny function, for Vercel (project root directory = `web`). The PC opens the site in Chrome or Edge, picks a folder, and shows a QR code; the phone scans it and sends photos **directly** to that folder over WebRTC. Nothing is stored on the server: `api/signal.js` only passes two short handshake messages, encrypted with a key that stays in the link's `#fragment`, and forgets them after 5 minutes.
+Setup: create the Vercel project from `web/`, add an **Upstash Redis** store from the Vercel Marketplace (it sets `UPSTASH_REDIS_REST_URL` / `_TOKEN`), deploy. Limits: phone → PC only; the PC must keep the tab open; Chrome/Edge only on the PC (folder access); file dates are not kept; no TURN relay, so strict networks (some mobile carriers, office Wi-Fi) may not connect, and then the Wi-Fi/Tailscale server above is the fallback.
 
 ## How it works
 - `phototransfer/sources/` — transports behind one small `Source` interface (`list_files`, `read`). `iphone.py` is USB/AFC, `local.py` is for tests. A Wi-Fi or Android source plugs in here later.

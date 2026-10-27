@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import queue
 import threading
 import tkinter as tk
@@ -15,6 +16,7 @@ from .engine import copy_files, upload_files
 from .sources.base import RemoteFile, Source
 from .thumbs import THUMB, is_image, load_thumb
 
+SETTINGS_FILE = Path.home() / ".phototransfer" / "settings.json"
 POLL_MS = 100
 PAD = 6
 CELL = THUMB + 2 * PAD  # one grid cell: the thumbnail box plus padding
@@ -27,6 +29,21 @@ KINDS = {
     "Photos": {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff"},
     "Videos": {".mov", ".mp4", ".m4v"},
 }
+
+
+def _load_settings() -> dict:
+    try:
+        return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_settings(settings: dict) -> None:
+    try:
+        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SETTINGS_FILE.write_text(json.dumps(settings), encoding="utf-8")
+    except OSError:
+        pass  # remembering the folder is a convenience; never block closing the window
 
 
 class App:
@@ -59,7 +76,8 @@ class App:
         threading.Thread(target=self.loop.run_forever, daemon=True).start()
 
         root.title("Phone photo transfer")
-        root.geometry("1100x860")
+        k = root.winfo_fpixels("1i") / 96
+        root.geometry(f"{round(1100 * k)}x{round(860 * k)}")
         self._build()
         root.protocol("WM_DELETE_WINDOW", self._quit)
         root.after(POLL_MS, self._poll)
@@ -111,7 +129,7 @@ class App:
         opts = ttk.Frame(self.root, padding=8)
         opts.pack(fill="x")
         ttk.Label(opts, text="Copy to:").pack(side="left")
-        self.dest = tk.StringVar(value=str(Path.home() / "Pictures" / "iPhone"))
+        self.dest = tk.StringVar(value=_load_settings().get("dest") or str(Path.home() / "Pictures" / "iPhone"))
         ttk.Entry(opts, textvariable=self.dest).pack(side="left", fill="x", expand=True, padx=4)
         ttk.Button(opts, text="Browse…", command=self.browse).pack(side="left")
         self.by_date = tk.BooleanVar(value=True)
@@ -303,7 +321,7 @@ class App:
         png = None
         async with self.thumb_sem:
             try:
-                png = await load_thumb(self.source, f)
+                png = await load_thumb(self.source, f, size=THUMB)
             except Exception:
                 pass  # the row just keeps its grey placeholder
         if png:
@@ -395,31 +413,76 @@ class App:
         if getattr(self, "wifi_win", None) and self.wifi_win.winfo_exists():
             self.wifi_win.lift()
             return
-        from .wifi import WifiServer, qr_png
+        from .wifi import WifiServer, persistent_token, qr_png
 
         folder = Path(self.dest.get().strip() or ".")
+        token = persistent_token()
+
+        def start(tls: bool) -> WifiServer:
+            server = WifiServer(folder, folder, token=token, tls=tls)
+            server.start()
+            return server
+
         try:
             folder.mkdir(parents=True, exist_ok=True)
-            server = WifiServer(folder, folder)
-            url = server.start()
+            server = start(False)
         except OSError as e:
             messagebox.showerror("Wi-Fi share", f"Could not start sharing: {e}")
             return
         win = self.wifi_win = tk.Toplevel(self.root)
         win.title("Wi-Fi share")
-        self.qr_img = tk.PhotoImage(data=qr_png(url))  # keep a reference or tk drops it
-        ttk.Label(win, image=self.qr_img).pack(padx=12, pady=(12, 4))
+        qr = ttk.Label(win)
+        qr.pack(padx=12, pady=(12, 4))
         ttk.Label(win, text="On your phone (same Wi-Fi), scan this or open:").pack()
         link = ttk.Entry(win, width=44)
-        link.insert(0, url)
-        link.config(state="readonly")
         link.pack(padx=12, pady=4)
-        note = ttk.Label(win, justify="center", wraplength=340, padding=8,
-                         text=f"Your phone can view the photos in {folder} (press and hold a photo, then Save to Photos). "
-                              f"Photos you upload from the phone are saved in that same folder. "
-                              f"Plain HTTP: use a network you trust. If Windows asks, allow Python on Private networks.")
-        note.pack()
+        away_label = ttk.Label(win, text="Away from home (Tailscale must be on in the phone):")
+        away = ttk.Entry(win, width=44)
+        https = tk.BooleanVar(value=False)
+        note = ttk.Label(win, justify="center", wraplength=340, padding=8)
         count = ttk.Label(win, text="0 files received")
+
+        def show() -> None:
+            self.qr_img = tk.PhotoImage(data=qr_png(server.url))  # keep a reference or tk drops it
+            qr.config(image=self.qr_img)
+            link.config(state="normal")
+            link.delete(0, "end")
+            link.insert(0, server.url)
+            link.config(state="readonly")
+            text = (f"Your phone can view the photos in {folder} (press and hold a photo, then Save to Photos). "
+                    f"Photos you upload from the phone are saved in that same folder. ")
+            if server.tls:
+                text += f"First time: install and trust the certificate from {server.cert_url} (see the README). "
+            else:
+                text += "Plain HTTP: use a network you trust. "
+            away.config(state="normal")
+            away.delete(0, "end")
+            if server.remote_url:
+                away.insert(0, server.remote_url)
+                away_label.pack(after=link)
+                away.pack(after=away_label, padx=12, pady=4)
+            else:
+                away_label.pack_forget()
+                away.pack_forget()
+            away.config(state="readonly")
+            note.config(text=text + "If Windows asks, allow Python on Private networks.")
+
+        def toggle() -> None:
+            nonlocal server
+            server.stop()
+            try:
+                server = start(https.get())
+            except OSError as e:
+                messagebox.showerror("Wi-Fi share", f"Could not restart sharing: {e}")
+                https.set(False)
+                server = start(False)
+            self._wifi_server = server
+            count.config(text="0 files received")
+            show()
+
+        ttk.Checkbutton(win, text="HTTPS (lets the page save many photos straight to Photos)", variable=https,
+                        command=toggle).pack()
+        note.pack()
         count.pack()
 
         def tick() -> None:
@@ -434,6 +497,7 @@ class App:
         ttk.Button(win, text="Stop sharing", command=close).pack(pady=(4, 12))
         win.protocol("WM_DELETE_WINDOW", close)
         self._wifi_server = server
+        show()
         tick()
 
     def send_files(self) -> None:
@@ -526,6 +590,7 @@ class App:
             self._sync_buttons()
 
     def _quit(self) -> None:
+        _save_settings({"dest": self.dest.get().strip()})
         self.cancel.set()
         if getattr(self, "_wifi_server", None):
             self._wifi_server.stop()
@@ -534,8 +599,30 @@ class App:
         self.root.destroy()
 
 
+def _apply_scale(scale: float) -> None:
+    """Grow the grid's pixel sizes on scaled displays (call before App is built)."""
+    global THUMB, PAD, CELL, HEAD_H
+    THUMB, PAD, HEAD_H = round(200 * scale), round(6 * scale), round(34 * scale)
+    CELL = THUMB + 2 * PAD
+
+
 def run(source_dir: str | None = None, udid: str | None = None) -> int:
+    try:
+        import ctypes
+
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # per-monitor
+        except Exception:
+            ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
     root = tk.Tk()
+    try:
+        dpi = root.winfo_fpixels("1i")
+        root.tk.call("tk", "scaling", dpi / 72.0)
+        _apply_scale(dpi / 96.0)
+    except tk.TclError:
+        pass
     App(root, source_dir, udid)
     root.mainloop()
     return 0

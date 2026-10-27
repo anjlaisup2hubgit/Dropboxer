@@ -50,6 +50,21 @@ def test_second_run_skips_everything(tmp_path, device):
     assert len(s.skipped) == 3 and not s.copied
 
 
+def test_skipped_files_count_as_done_in_progress(tmp_path, device):
+    base, data = device
+    src, dest = LocalSource(base), tmp_path / "out"
+    files = run(src.list_files("/DCIM"))
+    run(copy_files(src, files, "/DCIM", dest))
+    done = {}
+    run(copy_files(src, files, "/DCIM", dest, lambda path, d, total: done.__setitem__(path, d)))
+    assert sum(done.values()) == sum(len(b) for b in data.values())
+
+
+def test_missing_source_folder_is_an_error(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        run(LocalSource(tmp_path / "nope").list_files("/DCIM"))
+
+
 def test_resume_from_partial_file(tmp_path, device):
     base, data = device
     src, dest = LocalSource(base), tmp_path / "out"
@@ -338,6 +353,67 @@ def test_wifi_needs_token_and_stays_in_folder(tmp_path):
         srv.stop()
 
 
+def test_wifi_page_is_an_installable_app(tmp_path):
+    import json
+
+    srv, base = _wifi(tmp_path)
+    try:
+        root = base.rsplit("/", 1)[0]
+        s, body, _ = _get(base + "/")
+        assert b'rel="manifest"' in body and b"apple-touch-icon" in body
+        s, body, h = _get(base + "/manifest.webmanifest")
+        m = json.loads(body)
+        assert s == 200 and m["start_url"] == m["scope"] == f"/{srv.token}/" and m["display"] == "standalone"
+        for icon in m["icons"]:
+            s, png, _ = _get(root + icon["src"])
+            assert s == 200 and png[:4] == b"\x89PNG"
+        assert _get(base + "/icon/180.png")[0] == 200
+        assert _get(base + "/icon/999.png")[0] == 404
+        assert b"addEventListener" in _get(base + "/sw.js")[1]
+        assert _get(root + "/wrong/manifest.webmanifest")[0] == 404   # still needs the token
+    finally:
+        srv.stop()
+
+
+def test_wifi_token_persists_between_runs(tmp_path, monkeypatch):
+    from phototransfer import wifi
+
+    monkeypatch.setattr(wifi, "TOKEN_FILE", tmp_path / "sub" / "share_token")
+    first = wifi.persistent_token()
+    assert wifi.persistent_token() == first
+    (tmp_path / "sub" / "share_token").write_text("bad")      # damaged file: replaced
+    second = wifi.persistent_token()
+    assert second != "bad" and wifi.persistent_token() == second
+    assert wifi.persistent_token(renew=True) != second
+
+
+def test_wifi_https_with_self_signed_cert(tmp_path, monkeypatch):
+    import ssl
+    import urllib.request
+
+    from phototransfer import wifi
+
+    monkeypatch.setattr(wifi, "CERT_DIR", tmp_path / "tls")
+    monkeypatch.setattr(wifi, "lan_ip", lambda: "127.0.0.1")
+    (tmp_path / "a.jpg").write_bytes(b"x")
+    srv = wifi.WifiServer(tmp_path, tmp_path, port=0, tls=True)
+    try:
+        url = srv.start()
+        assert url.startswith("https://")
+        cert_path = tmp_path / "tls" / "cert.pem"
+        ctx = ssl.create_default_context(cafile=str(cert_path))  # trusts only our cert
+        assert b"a.jpg" in urllib.request.urlopen(url, context=ctx).read()
+        pem = urllib.request.urlopen(srv.cert_url).read()
+        assert pem == cert_path.read_bytes()
+        bad = srv.cert_url.rsplit("/", 2)[0] + "/nope/cert"
+        with pytest.raises(urllib.error.HTTPError):
+            urllib.request.urlopen(bad)
+        # unchanged IP: the same certificate is reused
+        assert wifi.ensure_cert("127.0.0.1")[0].read_bytes() == pem
+    finally:
+        srv.stop()
+
+
 def test_wifi_range_requests_for_video(tmp_path):
     srv, base = _wifi(tmp_path)
     try:
@@ -363,6 +439,50 @@ def test_wifi_zip_of_selected_files(tmp_path):
         zf = zipfile.ZipFile(io.BytesIO(data))
         assert sorted(zf.namelist()) == ["a.jpg", "clip.mov"]         # non-media and outside files left out
         assert zf.read("clip.mov") == bytes(range(100)) and zf.testzip() is None
+    finally:
+        srv.stop()
+
+
+def test_wifi_zip_has_exact_content_length(tmp_path):
+    import io
+    import urllib.parse
+    import urllib.request
+    import zipfile
+
+    srv, base = _wifi(tmp_path)
+    try:
+        (tmp_path / "share" / "ünï.mp4").write_bytes(b"v" * 3_000_000)
+        body = urllib.parse.urlencode([("f", "trip/a.jpg"), ("f", "clip.mov"), ("f", "ünï.mp4")]).encode()
+        with urllib.request.urlopen(urllib.request.Request(base + "/zip", data=body, method="POST")) as r:
+            data, declared = r.read(), int(r.headers["Content-Length"])
+        assert declared == len(data)
+        zf = zipfile.ZipFile(io.BytesIO(data))
+        assert zf.testzip() is None and len(zf.read("ünï.mp4")) == 3_000_000
+    finally:
+        srv.stop()
+
+
+def test_wifi_chunked_upload_resumes(tmp_path):
+    import urllib.error
+    import urllib.request
+
+    srv, base = _wifi(tmp_path)
+    try:
+        def put(offset, data, uid="ab" * 8, total=10):
+            req = urllib.request.Request(f"{base}/put?name=big.mov&id={uid}&total={total}&offset={offset}", data=data, method="PUT")
+            try:
+                with urllib.request.urlopen(req) as r:
+                    return r.status, r.read()
+            except urllib.error.HTTPError as e:
+                return e.code, e.read()
+
+        inbox = tmp_path / "inbox"
+        assert put(0, b"01234") == (200, b"more")
+        assert put(0, b"01234") == (409, b"5")                      # wrong offset: told where the PC is
+        assert not (inbox / "big.mov").exists()
+        assert put(5, b"56789") == (200, b"ok")
+        assert (inbox / "big.mov").read_bytes() == b"0123456789" and not list(inbox.glob(".*.part"))
+        assert put(0, b"x", uid="../../x")[0] == 400
     finally:
         srv.stop()
 

@@ -231,6 +231,8 @@ async def copy_files(
         target = dest / rel
         if _already_done(manifest.get(rel), target, f):
             summary.skipped.append(rel)
+            if progress:  # count it as done so a resumed run's progress bar still reaches 100%
+                progress(f.path, f.size, f.size)
             return
         async with sem:
             if summary.aborted or (cancel and cancel()):
@@ -316,6 +318,8 @@ async def upload_files(
         existing = await dest.stat(remote)
         if existing and existing.size == p.stat().st_size:
             summary.skipped.append(rel)
+            if progress:
+                progress(remote, existing.size, existing.size)
             continue
         try:
             await upload_file(dest, p, remote, checked_progress)

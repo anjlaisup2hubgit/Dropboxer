@@ -122,18 +122,23 @@ async def cmd_send(args) -> int:
 def cmd_share(args) -> int:
     import time
 
-    from .wifi import WifiServer
+    from .wifi import WifiServer, persistent_token
 
     share = Path(args.folder)
     if not share.is_dir():
         sys.exit(f"Not a folder: {share}")
     inbox = Path(args.inbox) if args.inbox else share
-    server = WifiServer(share, inbox, args.port)
+    server = WifiServer(share, inbox, args.port, persistent_token(args.new_token), tls=args.https)
     try:
         url = server.start()
     except OSError as e:
         sys.exit(f"Could not start the server on port {args.port}: {e}")
     print(f"Sharing {share}\nUploads from the phone go to {inbox}\n\nOn your phone (same Wi-Fi), open:\n  {url}\n")
+    if server.cert_url:
+        print("First time with --https: install and trust the certificate on the phone (see README), from:\n"
+              f"  {server.cert_url}\n")
+    if server.remote_url:
+        print(f"Away from home (phone has Tailscale on, same account):\n  {server.remote_url}\n")
     try:
         import segno
 
@@ -157,6 +162,14 @@ def cmd_share(args) -> int:
     return 0
 
 
+def cmd_tray(args) -> int:
+    from .gui import _load_settings
+    from .tray import run_tray
+
+    folder = Path(args.folder or _load_settings().get("dest") or Path.home() / "Pictures" / "iPhone")
+    return run_tray(folder, args.port)
+
+
 def cmd_gui(args) -> int:
     from .gui import run  # tkinter runs its own loop, so this is not async like the others
 
@@ -165,7 +178,7 @@ def cmd_gui(args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="phototransfer", description="Copy photos/videos from an iPhone over USB.")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd")
 
     def common(sp):
         sp.add_argument("--udid", help="Device UDID (default: the connected device)")
@@ -194,15 +207,21 @@ def main(argv: list[str] | None = None) -> int:
     sp.add_argument("folder", help="Folder of photos to show on the phone")
     sp.add_argument("--inbox", help="Where uploads from the phone are saved (default: the shared folder itself)")
     sp.add_argument("--port", type=int, default=8765, help="Port to listen on (default 8765)")
+    sp.add_argument("--https", action="store_true", help="Serve over HTTPS with a self-signed certificate (needed to save straight to Photos)")
+    sp.add_argument("--new-token", action="store_true", help="Make a new secret link (old links, bookmarks and home-screen icons stop working)")
     sp.set_defaults(fn=cmd_share)
+    sp = sub.add_parser("tray", help="Run the Wi-Fi share in the background from a system-tray icon (default when started with no command)")
+    sp.add_argument("folder", nargs="?", help="Folder to share (default: the GUI's 'Copy to' folder)")
+    sp.add_argument("--port", type=int, default=8765, help="Port to listen on (default 8765)")
+    sp.set_defaults(fn=cmd_tray)
     sp = sub.add_parser("gui", help="Open the window: browse, select and copy")
     sp.add_argument("--udid", help="Device UDID (default: the connected device)")
     sp.add_argument("--source-dir", help="Use a local folder instead of an iPhone (for testing)")
     sp.set_defaults(fn=cmd_gui)
 
-    args = p.parse_args(argv)
+    args = p.parse_args(["tray"] if argv is None and len(sys.argv) == 1 else argv)
     try:
-        if args.cmd in ("gui", "share"):  # gui runs its own loop; share is a blocking server
+        if args.cmd in ("gui", "share", "tray"):  # gui runs its own loop; share is a blocking server
             return args.fn(args)
         return asyncio.run(args.fn(args))
     except KeyboardInterrupt:

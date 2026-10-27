@@ -16,6 +16,8 @@ class LocalSource(Source):
         return self.base / path.lstrip("/")
 
     async def list_files(self, root: str) -> list[RemoteFile]:
+        if not self.base.is_dir():
+            raise FileNotFoundError(f"Source folder not found: {self.base}")
         out = []
         top = self._abs(root)
         for dirpath, _, names in os.walk(top):
