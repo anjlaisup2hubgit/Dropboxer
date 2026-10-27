@@ -2,32 +2,39 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Photo transfer (web)</title>
 <style>
-body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#111;color:#eee;max-width:640px}
-h1{font-size:1.2rem} button,input{font-size:1rem} button{padding:10px 16px;border-radius:8px;border:0;background:#2a7fff;color:#fff}
+body{font-family:system-ui,sans-serif;margin:0;padding:12px;background:#111;color:#eee}
+h2{font-size:1.05rem;margin:18px 0 8px} .up{background:#222;border-radius:10px;padding:12px;margin-bottom:12px}
+button,input[type=file]{font-size:1rem} button{padding:8px 14px;border-radius:8px;border:0;background:#2a7fff;color:#fff}
 button:disabled{opacity:.4} #qr{background:#fff;display:inline-block;padding:10px;border-radius:8px;margin:12px 0}
-#qr img,#qr svg{display:block;width:240px;height:240px} small,.muted{color:#999} .ok{color:#6c6} .bad{color:#f66}
-#log div{font-size:.9rem;margin:4px 0} .box{background:#222;border-radius:10px;padding:12px;margin:12px 0} code{word-break:break-all}
+#qr svg{display:block;width:240px;height:240px} small,.muted{color:#888} .ok{color:#6c6} .bad{color:#f66}
+#log div,#plog div{font-size:.85rem;margin:4px 0;color:#aaa} #log div.ok,#plog div.ok{color:#6c6} #log div.bad,#plog div.bad{color:#f66}
+code{word-break:break-all;font-size:.8rem;color:#aaa}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:4px}
+.grid a{display:block;aspect-ratio:1;background:#222;overflow:hidden;position:relative;color:#eee;text-decoration:none}
+.grid img,.grid video{width:100%;height:100%;object-fit:cover}
 </style></head><body>
-<h1>Photo transfer</h1>
 <div id="pc" hidden>
-  <div class="box">
-    <b>On this PC</b> (Chrome or Edge). Photos go straight from the phone to the folder you pick; nothing is stored on a server.<br><br>
+  <h2>Receive on this PC</h2>
+  <div class="up">
+    Use Chrome or Edge. Photos go straight from the phone to the folder you pick; nothing is stored on a server.<br><br>
     <button id="pick">1. Choose the folder to save into</button> <span id="folder" class="muted"></span>
   </div>
-  <div class="box" id="step2" hidden>
+  <div class="up" id="step2" hidden>
     Scan this with the phone camera (or open the link on the phone):<br>
     <div id="qr"></div><br><code id="link"></code><br><br>
     <button id="copy">Copy link</button> <button id="again" hidden>New code</button>
     <div id="state" class="muted"></div>
   </div>
   <div id="log"></div>
+  <h2>Received</h2><div class="grid" id="got"></div>
 </div>
 <div id="phone" hidden>
-  <div class="box"><b id="pstate">Connecting to the PC…</b></div>
-  <div class="box" id="send" hidden>
-    <input id="files" type="file" multiple accept="image/*,video/*"><br><br>
-    <small>Long videos: save them to Files first, then use "Browse" in the picker.</small><br><br>
-    <button id="go">Send to the PC</button> <button id="stop" hidden style="background:#c33">Stop</button>
+  <h2>Send to this PC</h2>
+  <div class="up"><b id="pstate">Connecting to the PC…</b></div>
+  <div class="up" id="send" hidden>
+    Photos: <input id="files" type="file" multiple accept="image/*,video/*"><br><br>
+    <small>Long videos (if the tick will not press): save them to Files first, then use Browse here.</small><br><br>
+    <button id="go">Upload</button> <button id="stop" hidden style="background:#c33">Stop</button>
     <div id="total" class="muted"></div><div id="plog"></div>
   </div>
 </div>
@@ -91,17 +98,23 @@ async function uniqueHandle(dir,name){
   const dot=name.lastIndexOf('.'),stem=dot>0?name.slice(0,dot):name,ext=dot>0?name.slice(dot):'';
   for(let n=0;;n++){const cand=n?`${stem} (${n})${ext}`:name;
     try{await dir.getFileHandle(cand);}catch(e){return [cand,await dir.getFileHandle(cand,{create:true})];}}}
+async function tile(h){
+  const f=await h.getFile(),u=URL.createObjectURL(f),a=document.createElement('a');
+  a.href=u;a.target='_blank';
+  a.innerHTML=/\.(mov|mp4|m4v)$/i.test(f.name)?`<video src="${u}#t=0.1" preload="metadata" muted playsinline></video>`
+    :/\.(jpe?g|png|gif|webp)$/i.test(f.name)?`<img src="${u}" alt="">`:'';
+  if(a.innerHTML)$('got').prepend(a);}
 function receiver(ch,dir){
-  let w=null,name='',got=0,size=0,id=null,queue=Promise.resolve(),row=null;
+  let w=null,fh=null,name='',got=0,size=0,id=null,queue=Promise.resolve(),row=null;
   ch.onmessage=e=>{
     if(typeof e.data==='string'){
       const m=JSON.parse(e.data);
       if(m.t==='start'){queue=queue.then(async()=>{
-        const [n,h]=await uniqueHandle(dir,m.name);name=n;w=await h.createWritable();got=0;size=m.size;id=m.id;
+        const [n,h]=await uniqueHandle(dir,m.name);name=n;fh=h;w=await h.createWritable();got=0;size=m.size;id=m.id;
         row=document.createElement('div');row.textContent=n+' …';$('log').prepend(row);});}
       else if(m.t==='end'){queue=queue.then(async()=>{
         await w.close();const ok=got===size;w=null;
-        row.textContent=name+(ok?' ✓ received':' ✗ incomplete');row.className=ok?'ok':'bad';
+        row.textContent=name+(ok?' ✓ received':' ✗ incomplete');row.className=ok?'ok':'bad';if(ok)await tile(fh);
         ch.send(JSON.stringify({t:ok?'ok':'err',id:m.id}));});}
     }else{
       const buf=e.data;queue=queue.then(async()=>{if(!w)return;await w.write(buf);got+=buf.byteLength;
