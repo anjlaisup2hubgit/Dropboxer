@@ -16,6 +16,7 @@ from tkinter import filedialog, messagebox, ttk
 from .cli import DEFAULT_ROOT, DEFAULT_UPLOAD_ROOT, _human
 from .engine import copy_files, upload_files
 from .sources.base import RemoteFile, Source
+from .lang import LANGUAGES, T, language, set_language
 from .thumbs import THUMB, audio_to_wav, is_audio, is_image, is_video, is_wav, load_thumb, local_thumb
 
 SETTINGS_FILE = Path.home() / ".phototransfer" / "settings.json"
@@ -43,9 +44,9 @@ SEND_TO = {
     "Documents by Readdle": "com.readdle.ReaddleDocsIPad",
 }
 APP_NAME = "Dropboxer"
-# Same palette as the Wi-Fi web page: white, thin pale lines, one green accent.
-BG, HEAD, PANEL, SOFT, LINE = "#ffffff", "#f3f7ee", "#ffffff", "#f3f6ee", "#dfe3d9"
-TEXT, MUTED, GREEN, GREEN_DARK, RED = "#1f2a1f", "#6b7568", "#5ea500", "#4d8a00", "#c0392b"
+# White, thin pale lines, one muted sage accent.
+BG, HEAD, PANEL, SOFT, LINE = "#ffffff", "#f5f6f2", "#ffffff", "#f4f5f1", "#e1e4dc"
+TEXT, MUTED, GREEN, GREEN_DARK, RED = "#2b312a", "#737a70", "#6b8a5e", "#56734a", "#b5574d"
 
 
 def _load_settings() -> dict:
@@ -133,7 +134,7 @@ class DateField(ttk.Frame):
         font = ("Segoe UI", 10)
         head = tk.Frame(self.body, background="white")
         head.pack(fill="x", pady=(0, 6))
-        tk.Label(head, text=datetime(self.year, self.month, 1).strftime("%B %Y"), background="white", foreground=TEXT,
+        tk.Label(head, text=datetime(self.year, self.month, 1).strftime("%B %Y") if language() == "en" else T("Month {m} {y}", m=self.month, y=self.year), background="white", foreground=TEXT,
                  font=("Segoe UI", 10, "bold")).pack(side="left")
         for arrow, step in (("↓", 1), ("↑", -1)):
             b = tk.Label(head, text=arrow, background="white", foreground=TEXT, font=("Segoe UI", 13), cursor="hand2", padx=8)
@@ -142,7 +143,7 @@ class DateField(ttk.Frame):
         grid = tk.Frame(self.body, background="white")
         grid.pack()
         for c, name in enumerate(("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")):
-            tk.Label(grid, text=name, width=4, background="white", foreground=TEXT, font=("Segoe UI", 10, "bold")).grid(row=0, column=c)
+            tk.Label(grid, text=T(name), width=4, background="white", foreground=TEXT, font=("Segoe UI", 10, "bold")).grid(row=0, column=c)
         today, chosen = datetime.now().date(), self.var.get()
         for i, d in enumerate(calendar.Calendar(0).itermonthdates(self.year, self.month)):
             inside, sel = d.month == self.month, d.isoformat() == chosen
@@ -157,7 +158,7 @@ class DateField(ttk.Frame):
         foot = tk.Frame(self.body, background="white")
         foot.pack(fill="x", pady=(8, 0))
         for text, side, value in (("Clear", "left", ""), ("Today", "right", today.isoformat())):
-            b = tk.Label(foot, text=text, background="white", foreground=GREEN_DARK, font=font, cursor="hand2")
+            b = tk.Label(foot, text=T(text), background="white", foreground=GREEN_DARK, font=font, cursor="hand2")
             b.pack(side=side)
             b.bind("<Button-1>", lambda _e, v=value: self._pick(v))
 
@@ -180,6 +181,9 @@ class App:
         self.hits: list[tuple] = []  # what is drawn right now: (x0, y0, x1, y1, kind, payload)
         self.cols = 1
         self.last_clicked: RemoteFile | None = None
+        self.band_from: tuple[float, float] | None = None  # where the left button went down, for drag-to-select
+        self.band: tuple[float, float, float, float] | None = None  # the box being dragged, in canvas coordinates
+        self.band_base: set[str] = set()
         self.redraw_pending = False
         self.tip: tk.Toplevel | None = None
         self.tip_after: str | None = None
@@ -215,6 +219,7 @@ class App:
         w = min(round(1100 * k), right - left - 20)
         h = min(round(860 * k), bottom - top - 50)  # 50: the title bar and window borders
         root.geometry(f"{w}x{h}+{left + (right - left - w) // 2}+{top + (bottom - top - h - 40) // 2}")
+        set_language(_load_settings().get("lang", "en"))
         self._build()
         self._mode_changed()  # PC to iPhone is the starting mode
         root.protocol("WM_DELETE_WINDOW", self._quit)
@@ -249,10 +254,10 @@ class App:
                     darkcolor="white", borderwidth=1, padding=(14, 6), relief="solid")
         s.map("TButton", background=[("disabled", "#fafbf8"), ("active", SOFT)], foreground=[("disabled", "#b3baac"), ("active", GREEN_DARK)],
               bordercolor=[("disabled", LINE), ("active", GREEN)])
-        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#cfe3b3", "white", True),
-                                                ("Danger", "white", "#fdf1f0", "white", RED, False)):
+        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#c9d3c4", "white", True),
+                                                ("Danger", "white", "#f9f1f0", "white", RED, False)):
             s.configure(f"{name}.TButton", background=bg, foreground=fg, font=("Segoe UI", 10, "bold"),
-                        bordercolor=bg if fill else "#e8b9b3", lightcolor=bg, darkcolor=bg)
+                        bordercolor=bg if fill else "#e3c4c0", lightcolor=bg, darkcolor=bg)
             s.map(f"{name}.TButton", background=[("disabled", off), ("active", hover)],
                   foreground=[("disabled", "white" if fill else "#e3c3bf")],
                   bordercolor=[("disabled", off if fill else LINE), ("active", hover if fill else RED)])
@@ -278,18 +283,22 @@ class App:
         head.pack(fill="x")
         tk.Frame(self.root, height=1, background=LINE).pack(fill="x")  # thin line under the header
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
+        lang = ttk.Combobox(head, values=list(LANGUAGES.values()), state="readonly", width=11)
+        lang.set(LANGUAGES[language()])
+        lang.pack(side="right")
+        lang.bind("<<ComboboxSelected>>", lambda _e: self._set_language(lang.current()))
 
         self.top = top = ttk.Frame(self.root, padding=(16, 12, 16, 6))
         top.pack(fill="x")
         seg = ttk.Frame(top)
         seg.pack(side="left")
         for text, value in (("PC to iPhone", "send"), ("iPhone to PC", "receive")):
-            ttk.Radiobutton(seg, text=text, value=value, variable=self.mode, style="Seg.Toolbutton",
+            ttk.Radiobutton(seg, text=T(text), value=value, variable=self.mode, style="Seg.Toolbutton",
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
-        self.copy_btn = ttk.Button(top, text="Copy", style="Primary.TButton", command=self.primary_action, state="disabled")
+        self.copy_btn = ttk.Button(top, text=T("Copy"), style="Primary.TButton", command=self.primary_action, state="disabled")
         self.copy_btn.pack(side="left", padx=(16, 0))
-        self.folder_btn = ttk.Button(top, text="Folder…", command=self.send_folder)  # PC to iPhone only
-        self.cancel_btn = ttk.Button(top, text="Stop", style="Danger.TButton", command=self.cancel.set)
+        self.folder_btn = ttk.Button(top, text=T("Folder…"), command=self.send_folder)  # PC to iPhone only
+        self.cancel_btn = ttk.Button(top, text=T("Stop"), style="Danger.TButton", command=self.cancel.set)
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
         self.bar = ttk.Progressbar(top, maximum=100)
@@ -299,21 +308,22 @@ class App:
         self.rows = ttk.Frame(self.root, padding=(16, 0, 16, 8))
         self.rows.pack(fill="x")
         self.dest_row = row = ttk.Frame(self.rows)
-        ttk.Label(row, text="Save in").pack(side="left")
+        ttk.Label(row, text=T("Save in")).pack(side="left")
         self.dest = tk.StringVar(value=_load_settings().get("dest") or str(Path.home() / "Pictures" / "iPhone"))
         ttk.Entry(row, textvariable=self.dest).pack(side="left", fill="x", expand=True, padx=8)
-        ttk.Button(row, text="Change", command=self.browse).pack(side="left")
+        ttk.Button(row, text=T("Change"), command=self.browse).pack(side="left")
         self.remote_row = row = ttk.Frame(self.rows)  # PC to iPhone: where on the phone
-        ttk.Label(row, text="Send to").pack(side="left")
-        self.send_to = tk.StringVar(value="Folder on iPhone")
-        pick = ttk.Combobox(row, textvariable=self.send_to, values=list(SEND_TO), state="readonly", width=20)
+        ttk.Label(row, text=T("Send to")).pack(side="left")
+        self.send_names = {T(k): k for k in SEND_TO}  # what the list shows -> its key in SEND_TO
+        self.send_to = tk.StringVar(value=T("Folder on iPhone"))
+        pick = ttk.Combobox(row, textvariable=self.send_to, values=list(self.send_names), state="readonly", width=20)
         pick.pack(side="left", padx=8)
         pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
         self.remote = tk.StringVar(value=DEFAULT_UPLOAD_ROOT)
-        self.remote_label = ttk.Label(row, text="folder")
+        self.remote_label = ttk.Label(row, text=T("folder"))
         self.remote_label.pack(side="left")
         ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
-        self.send_note = ttk.Label(row, text="Won't show in Photos.", style="Muted.TLabel")
+        self.send_note = ttk.Label(row, text=T("Won't show in Photos."), style="Muted.TLabel")
         self.send_note.pack(side="left")
 
         # Filters and select-all sit in view, because they are used all the time.
@@ -321,19 +331,19 @@ class App:
         bar.pack(fill="x")
         self.kind = tk.StringVar(value="All")
         for name in KINDS:
-            ttk.Radiobutton(bar, text=name, value=name, variable=self.kind, style="Seg.Toolbutton",
+            ttk.Radiobutton(bar, text=T(name), value=name, variable=self.kind, style="Seg.Toolbutton",
                             command=self._fill).pack(side="left", padx=(0, 2))
         self.all_ticked = tk.BooleanVar(value=False)
-        ttk.Checkbutton(bar, text="Select all", variable=self.all_ticked, command=self._toggle_all).pack(side="left", padx=(16, 0))
+        ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all).pack(side="left", padx=(16, 0))
         self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
-        self.connect_btn = ttk.Button(bar, text="Reload", command=self.connect)  # iPhone to PC, once files are listed
-        self.wifi_btn = ttk.Button(bar, text="Wi-Fi", command=self.wifi_share)
-        ttk.Button(bar, text="Reset", command=self.clear_dates).pack(side="right")
-        for var, text, hint in ((self.date_to, "to", "Any date"), (self.date_from, "From", "Any date")):
+        self.connect_btn = ttk.Button(bar, text=T("Reload"), command=self.connect)  # iPhone to PC, once files are listed
+        self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi"), command=self.wifi_share)
+        ttk.Button(bar, text=T("Reset"), command=self.clear_dates).pack(side="right")
+        for var, text, hint in ((self.date_to, T("to"), T("Any date")), (self.date_from, T("From"), T("Any date"))):
             DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
             ttk.Label(bar, text=text, style="Muted.TLabel").pack(side="right", padx=(10, 0))
         ttk.Label(self.root, style="Muted.TLabel", padding=(16, 2, 16, 6),
-                  text="Shift-click selects a range  ·  click a day to select all of it").pack(fill="x")
+                  text=T("Shift-click selects a range  ·  click a day to select all of it")).pack(fill="x")
 
         self.by_date = tk.BooleanVar(value=True)  # copies are always sorted into date folders
         self.jobs = tk.IntVar(value=1)
@@ -347,23 +357,41 @@ class App:
         sb.pack(side="right", fill="y")
         self.canvas.bind("<MouseWheel>", lambda e: self.canvas.yview_scroll(-WHEEL_UNITS if e.delta > 0 else WHEEL_UNITS, "units"))
         self.canvas.bind("<Configure>", lambda _e: self.root.after_idle(self._relayout))
-        self.canvas.bind("<Button-1>", self._click)
-        self.canvas.bind("<Double-Button-1>", self._open_preview)  # the two clicks cancel out, the tick is unchanged
+        self.canvas.bind("<Button-1>", self._press)
+        self.canvas.bind("<B1-Motion>", self._drag)
+        self.canvas.bind("<ButtonRelease-1>", self._release)
+        self.canvas.bind("<Double-Button-1>", lambda e: (self._press(e), self._open_preview(e)))  # the two clicks cancel out
         self.canvas.bind("<Motion>", self._motion)
         self.canvas.bind("<Leave>", lambda _e: self._hide_tip(reset=True))
         self.empty = tk.Frame(self.canvas, background=BG)  # iPhone to PC with nothing listed yet: how to get photos
         for text, command in (("USB-C cable", self.connect), ("Wi-Fi share", self.wifi_share)):
-            ttk.Button(self.empty, text=text, style="Primary.TButton", command=command, width=16).pack(side="left", padx=8, ipady=8)
+            ttk.Button(self.empty, text=T(text), style="Primary.TButton", command=command, width=16).pack(side="left", padx=8, ipady=8)
 
-        self.status = ttk.Label(self.root, text="Unlock your iPhone and tap Trust.",
+        self.status = ttk.Label(self.root, text=T("Unlock your iPhone and tap Trust."),
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
         self.status.pack(side="bottom", fill="x", before=mid)  # a short window shrinks the grid, not the status
 
-    def _mode_changed(self) -> None:
+    def _set_language(self, index: int) -> None:
+        """Rebuild the window in the chosen language; the files, ticks, dates and folders stay as they are."""
+        set_language(list(LANGUAGES)[index])
+        _save_settings({**_load_settings(), "lang": language(), "dest": self.dest.get().strip()})
+        mode, kind = self.mode.get(), self.kind.get()
+        dates = self.date_from.get(), self.date_to.get()
+        for w in self.root.winfo_children():
+            w.destroy()
+        self._build()
+        self.mode.set(mode)
+        self.kind.set(kind)
+        self.date_from.set(dates[0])
+        self.date_to.set(dates[1])
+        self._mode_changed(keep=True)
+
+    def _mode_changed(self, keep: bool = False) -> None:
         """Switch between copying from the iPhone and sending to it."""
         sending = self.mode.get() == "send"
-        self._stash["receive" if sending else "send"] = (self.all_files, self.selected)
-        self.all_files, self.selected = self._stash["send" if sending else "receive"]
+        if not keep:
+            self._stash["receive" if sending else "send"] = (self.all_files, self.selected)
+            self.all_files, self.selected = self._stash["send" if sending else "receive"]
         if sending:
             self.dest_row.pack_forget()
             self.remote_row.pack(fill="x")
@@ -372,7 +400,7 @@ class App:
                 self.send_scanned = True
                 self._show_folder(Path.home() / "Pictures")
                 self._show_folder(Path.home() / "Music")
-            self.status.config(text="" if self.all_files else "Looking for files…")
+            self.status.config(text="" if self.all_files else T("Looking for files…"))
         else:
             self.remote_row.pack_forget()
             self.dest_row.pack(fill="x")
@@ -404,7 +432,7 @@ class App:
         try:
             lo, hi = self._date_bounds()
         except ValueError:
-            self.status.config(text="Dates must look like 2026-10-26.")
+            self.status.config(text=T("Dates must look like 2026-10-26."))
             return
         exts = KINDS[self.kind.get()]
         self.shown = sorted(
@@ -453,7 +481,7 @@ class App:
             if self.mode.get() == "receive" and not self.all_files:
                 c.create_window(mid_x, mid_y, window=self.empty)
             else:
-                c.create_text(mid_x, mid_y, text="No files match these filters." if self.all_files else "Nothing here yet.",
+                c.create_text(mid_x, mid_y, text=T("No files match these filters.") if self.all_files else T("Nothing here yet."),
                               fill=MUTED, font=("Segoe UI", 13))
             return
         top = c.canvasy(0)
@@ -488,11 +516,44 @@ class App:
                 c.create_text(x0 + 17, y0 + 17, text="✓", fill="white", font=("Segoe UI", 11, "bold"))
             self.hits.append((x0, y0, x0 + THUMB, y0 + THUMB, "cell", f))
             self.visible.append(f)
+        if self.band:  # the box being dragged
+            c.create_rectangle(*self.band, outline=GREEN, fill=GREEN, stipple="gray12", width=1)
         self._load_visible()
 
     def _hit(self, e: tk.Event) -> tuple | None:
         x, y = self.canvas.canvasx(e.x), self.canvas.canvasy(e.y)
         return next((h for h in self.hits if h[0] <= x < h[2] and h[1] <= y < h[3]), None)
+
+    def _press(self, e: tk.Event) -> None:
+        self.band_from = (self.canvas.canvasx(e.x), self.canvas.canvasy(e.y))
+        self.band = None
+        self.band_base = set(self.selected)
+
+    def _drag(self, e: tk.Event) -> None:
+        """Hold the left button and drag: every tile the box touches is selected (on top of what was already)."""
+        if not self.band_from:
+            return
+        c = self.canvas
+        if e.y < 0 or e.y > c.winfo_height():  # dragging past the top or bottom edge scrolls
+            c.yview_scroll(-1 if e.y < 0 else 1, "units")
+        x0, y0 = self.band_from
+        x1, y1 = c.canvasx(e.x), c.canvasy(e.y)
+        if not self.band and abs(x1 - x0) < 5 and abs(y1 - y0) < 5:
+            return  # still a click
+        self.band = (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
+        l, t, rt, b = self.band
+        hit = {h[5].path for h in self.hits if h[4] == "cell" and h[0] < rt and h[2] > l and h[1] < b and h[3] > t}
+        self.selected = self.band_base | hit
+        self._update_count()
+        self._schedule_redraw()
+
+    def _release(self, e: tk.Event) -> None:
+        dragged = self.band is not None
+        self.band = self.band_from = None
+        if dragged:
+            self._schedule_redraw()
+        else:
+            self._click(e)
 
     def _click(self, e: tk.Event) -> None:
         h = self._hit(e)
@@ -524,7 +585,7 @@ class App:
         win = tk.Toplevel(self.root)
         win.title(Path(f.path).name)
         win.configure(background=BG)
-        label = tk.Label(win, text="Loading…", background=BG, foreground=TEXT, padx=60, pady=40)
+        label = tk.Label(win, text=T("Loading…"), background=BG, foreground=TEXT, padx=60, pady=40)
         label.pack()
         win.bind("<Escape>", lambda _e: win.destroy())
         label.bind("<Button-1>", lambda _e: win.destroy())
@@ -632,18 +693,18 @@ class App:
     def _update_count(self) -> None:
         sel = self.selected_files()
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
-        self.count.config(text=f"{len(sel)} selected  ·  {_human(sum(f.size for f in sel))}" if sel else "")
+        self.count.config(text=f"{T('{n} selected', n=len(sel))}  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
 
     def _sync_buttons(self) -> None:
         n = len(self.selected_files())
         ready = bool(self.source) and not self.busy
         if self.mode.get() == "send":
-            self.copy_btn.config(text=f"Send {n}" if n else "Add files…",
+            self.copy_btn.config(text=T("Send {n}", n=n) if n else T("Add files…"),
                                  state=("normal" if ready else "disabled") if n else ("disabled" if self.busy else "normal"))
         else:
-            self.copy_btn.config(text=f"Copy {n}" if n else "Copy", state="normal" if ready and n else "disabled")
-        self.connect_btn.config(text="Reconnect" if self.failed else "Reload")
+            self.copy_btn.config(text=T("Copy {n}", n=n) if n else T("Copy"), state="normal" if ready and n else "disabled")
+        self.connect_btn.config(text=T("Reconnect") if self.failed else T("Reload"))
         show = self.mode.get() == "receive" and bool(self.all_files)  # otherwise the middle of the list has them
         for b in (self.connect_btn, self.wifi_btn):
             b.pack(side="right", padx=(0, 6)) if show else b.pack_forget()
@@ -664,7 +725,7 @@ class App:
 
     def connect(self) -> None:
         self.failed = False
-        self.status.config(text="Connecting…")
+        self.status.config(text=T("Connecting…"))
         self._submit(self._connect())
 
     async def _connect(self) -> None:
@@ -696,7 +757,7 @@ class App:
         self.total = sum(f.size for f in files)
         self.done: dict[str, int] = {}
         self.verb, self.nfiles, self.sizes = "Copying", len(files), {}
-        self.status.config(text=f"Copying {len(files)} files…")
+        self.status.config(text=T("Copying {n} files…", n=len(files)))
         self._submit(self._copy(files, Path(dest), jobs, self.by_date.get()))
 
     async def _copy(self, files, dest, jobs, by_date) -> None:
@@ -725,21 +786,21 @@ class App:
             folder.mkdir(parents=True, exist_ok=True)
             server = start(False)
         except OSError as e:
-            messagebox.showerror("Wi-Fi share", f"Could not start sharing: {e}")
+            messagebox.showerror(T("Wi-Fi share"), T("Could not start sharing: {e}", e=e))
             return
         win = self.wifi_win = tk.Toplevel(self.root)
-        win.title(f"{APP_NAME} - Wi-Fi share")
+        win.title(f"{APP_NAME} - {T('Wi-Fi share')}")
         win.configure(background=BG)
         qr = ttk.Label(win)
         qr.pack(padx=12, pady=(12, 4))
-        ttk.Label(win, text="Scan with your phone (same Wi-Fi)").pack()
+        ttk.Label(win, text=T("Scan with your phone (same Wi-Fi)")).pack()
         link = ttk.Entry(win, width=44)
         link.pack(padx=12, pady=4)
-        away_label = ttk.Label(win, text="Away from home:")
+        away_label = ttk.Label(win, text=T("Away from home:"))
         away = ttk.Entry(win, width=44)
         https = tk.BooleanVar(value=False)
         note = ttk.Label(win, justify="center", wraplength=340, padding=8)
-        count = ttk.Label(win, text="0 files received")
+        count = ttk.Label(win, text=T("{n} files received", n=0))
 
         def show() -> None:
             self.qr_img = tk.PhotoImage(data=qr_png(server.url))  # keep a reference or tk drops it
@@ -748,9 +809,9 @@ class App:
             link.delete(0, "end")
             link.insert(0, server.url)
             link.config(state="readonly")
-            text = f"Saves to: {folder}"
+            text = T("Saves to: {folder}", folder=folder)
             if server.tls:
-                text += f"\nFirst time, trust: {server.cert_url}"
+                text += "\n" + T("First time, trust: {url}", url=server.cert_url)
             away.config(state="normal")
             away.delete(0, "end")
             if server.remote_url:
@@ -769,56 +830,56 @@ class App:
             try:
                 server = start(https.get())
             except OSError as e:
-                messagebox.showerror("Wi-Fi share", f"Could not restart sharing: {e}")
+                messagebox.showerror(T("Wi-Fi share"), T("Could not restart sharing: {e}", e=e))
                 https.set(False)
                 server = start(False)
             self._wifi_server = server
-            count.config(text="0 files received")
+            count.config(text=T("{n} files received", n=0))
             show()
 
-        ttk.Checkbutton(win, text="HTTPS (save many photos at once)", variable=https,
+        ttk.Checkbutton(win, text=T("HTTPS (save many photos at once)"), variable=https,
                         command=toggle).pack()
         note.pack()
         count.pack()
 
         def tick() -> None:
             if win.winfo_exists():
-                count.config(text=f"{len(server.received)} files received")
+                count.config(text=T("{n} files received", n=len(server.received)))
                 win.after(1000, tick)
 
         def close() -> None:
             server.stop()
             win.destroy()
 
-        ttk.Button(win, text="Stop sharing", style="Danger.TButton", command=close).pack(pady=(4, 14))
+        ttk.Button(win, text=T("Stop sharing"), style="Danger.TButton", command=close).pack(pady=(4, 14))
         win.protocol("WM_DELETE_WINDOW", close)
         self._wifi_server = server
         show()
         tick()
 
     def _send_to_changed(self) -> None:
-        app = SEND_TO[self.send_to.get()]
+        app = SEND_TO[self.send_names[self.send_to.get()]]
         self.remote.set(DEFAULT_UPLOAD_ROOT if app is None else "")
-        self.remote_label.config(text="folder" if app is None else "subfolder (optional)")
-        self.send_note.config(text="Won't show in Photos." if app is None else
-                              f"Find them in {self.send_to.get().split(' (')[0]}.")
+        self.remote_label.config(text=T("folder") if app is None else T("subfolder (optional)"))
+        self.send_note.config(text=T("Won't show in Photos.") if app is None else
+                              T("Find them in {app}.", app=self.send_to.get().split(" (")[0]))
 
     def choose_files(self) -> None:
-        names = filedialog.askopenfilenames(title="Choose files to send to the phone", filetypes=[
-            ("All files", "*.*"), ("Music", " ".join(f"*{e}" for e in sorted(AUDIO))),
-            ("Photos and videos", " ".join(f"*{e}" for e in sorted(KINDS["Photos"] | KINDS["Videos"])))])
+        names = filedialog.askopenfilenames(title=T("Choose files to send to the phone"), filetypes=[
+            (T("All files"), "*.*"), (T("Music"), " ".join(f"*{e}" for e in sorted(AUDIO))),
+            (T("Photos and videos"), " ".join(f"*{e}" for e in sorted(KINDS["Photos"] | KINDS["Videos"])))])
         if names:
             self._add_to_send([Path(n) for n in names])
 
     def send_folder(self) -> None:
-        d = filedialog.askdirectory(title="Choose a folder to send to the phone")
+        d = filedialog.askdirectory(title=T("Choose a folder to send to the phone"))
         if d:
             self._show_folder(Path(d))
 
     def _show_folder(self, folder: Path) -> None:
         """List the photos and videos inside a folder (nothing ticked yet) so they can be previewed and picked."""
         exts = KINDS["Photos"] | KINDS["Videos"] | AUDIO
-        self.status.config(text=f"Looking in {folder}…")
+        self.status.config(text=T("Looking in {folder}…", folder=folder))
 
         def scan() -> None:
             found = []
@@ -859,31 +920,31 @@ class App:
         try:
             root = Path(os.path.commonpath([str(p.parent) for p in paths]))
         except ValueError:  # different drives
-            messagebox.showerror("Different drives", "Send files from one drive at a time: untick the others.")
+            messagebox.showerror(T("Different drives"), T("Send files from one drive at a time: untick the others."))
             return
         self._start_send(paths, root)
 
     def _start_send(self, paths: list[Path], root: Path) -> None:
         remote = "/" + self.remote.get().strip().strip("/")
         if not paths:
-            self.status.config(text="Nothing to send.")
+            self.status.config(text=T("Nothing to send."))
             return
         if remote == "/DCIM" or remote.startswith("/DCIM/"):
-            messagebox.showerror("Not allowed", "Sending into /DCIM can confuse the Photos app. Pick another folder.")
+            messagebox.showerror(T("Not allowed"), T("Sending into /DCIM can confuse the Photos app. Pick another folder."))
             return
         self.cancel.clear()
         self.bar.config(value=0)
         self.total = sum(p.stat().st_size for p in paths)
         self.done = {}
         self.verb, self.nfiles, self.sizes = "Sending", len(paths), {}
-        self.status.config(text=f"Sending {len(paths)} files to {remote}…")
+        self.status.config(text=T("Sending {n} files to {remote}…", n=len(paths), remote=remote))
         self._submit(self._send(paths, root, remote))
 
     async def _send(self, paths, root, remote) -> None:
         def progress(path: str, done: int, total: int) -> None:
             self.events.put(("progress", path, done, total))
 
-        app = SEND_TO[self.send_to.get()]
+        app = SEND_TO[self.send_names[self.send_to.get()]]
         dest = await self.source.open_app(app) if app else self.source
         try:
             summary = await upload_files(dest, paths, root, "" if remote == "/" and app else remote, progress, self.cancel.is_set)
@@ -914,18 +975,19 @@ class App:
             self.thumb_asked.clear()
             self.busy = False
             self._fill()
-            span = ""
+            span = None
             if ev[1]:
                 lo, hi = (datetime.fromtimestamp(t(f.mtime for f in ev[1])).strftime("%Y-%m-%d") for t in (min, max))
-                span = f" from {lo} to {hi}"
-            self.status.config(text=f"{len(ev[1])} found{span}"
+                span = (lo, hi)
+            self.status.config(text=(T("{n} found from {lo} to {hi}", n=len(ev[1]), lo=span[0], hi=span[1]) if span
+                                     else T("{n} found", n=len(ev[1])))
                                if self.mode.get() == "receive" else "")
             self._sync_buttons()
         elif kind == "folder":
             _, files, folder = ev
             self._add_to_send(files, tick=False)
             if not files:
-                self.status.config(text=f"Nothing found in {folder}.")
+                self.status.config(text=T("Nothing found in {folder}.", folder=folder))
         elif kind == "preview":
             _, png, win, label = ev
             if win.winfo_exists():
@@ -933,7 +995,7 @@ class App:
                     label.image = tk.PhotoImage(data=png)  # kept on the label so tk does not drop it
                     label.config(image=label.image, text="", padx=0, pady=0)
                 else:
-                    label.config(text="No preview for this file.")
+                    label.config(text=T("No preview for this file."))
         elif kind == "thumb":
             _, path, png = ev
             img = tk.PhotoImage(data=png)
@@ -952,36 +1014,37 @@ class App:
             self.bar.config(value=pct)
             finished = sum(1 for q, d in self.done.items() if d >= self.sizes.get(q, 0))
             name = PurePosixPath(path.replace("\\", "/")).name
-            self.status.config(text=f"{self.verb} {min(finished + 1, self.nfiles)} of {self.nfiles}: {name}  ({pct:.0f}%)")
+            self.status.config(text=T("{verb} {i} of {n}: {name}  ({pct:.0f}%)", verb=T(self.verb), i=min(finished + 1, self.nfiles), n=self.nfiles, name=name, pct=pct))
         elif kind == "finished":
             s = ev[1]
             self.busy = False
             self.bar.config(value=100 if not (s.aborted or self.cancel.is_set()) else self.bar["value"])
             verb, already = ev[2:] if len(ev) > 2 else ("Copied", "already done")
-            msg = f"{verb} {len(s.copied)} ({_human(s.bytes_copied)}), skipped {len(s.skipped)} {already}, failed {len(s.failed)}."
+            msg = T("{verb} {n} ({size}), skipped {skipped} {already}, failed {failed}.", verb=T(verb), n=len(s.copied),
+                    size=_human(s.bytes_copied), skipped=len(s.skipped), already=T(already), failed=len(s.failed))
             if self.cancel.is_set():
-                msg += " Cancelled; run it again to continue."
+                msg += T(" Cancelled; run it again to continue.")
             if s.aborted:
                 self.failed = True
-                msg += f" Stopped early: {s.aborted}. Reconnect, unlock the phone, then Connect and copy again to resume."
+                msg += T(" Stopped early: {why}. Reconnect, unlock the phone, then Connect and copy again to resume.", why=s.aborted)
             self.status.config(text=msg)
             if s.failed:
-                messagebox.showwarning("Some files failed", "\n".join(f"{r}: {e}" for r, e in s.failed[:10]))
+                messagebox.showwarning(T("Some files failed"), "\n".join(f"{r}: {e}" for r, e in s.failed[:10]))
             self._sync_buttons()
             self.root.after_idle(self._load_visible)
         elif kind == "error":
             e = ev[1]
             self.busy = False
             self.failed = True
-            self.status.config(text=f"{type(e).__name__}: {e}. Check the cable, unlock the phone, click Reconnect.")
+            self.status.config(text=T("{err}. Check the cable, unlock the phone, click Reconnect.", err=f"{type(e).__name__}: {e}"))
             messagebox.showerror(
-                "Could not complete",
-                f"{type(e).__name__}: {e}\n\nCheck: cable plugged in, phone unlocked, 'Trust This Computer' accepted.",
+                T("Could not complete"),
+                T("{err}\n\nCheck: cable plugged in, phone unlocked, 'Trust This Computer' accepted.", err=f"{type(e).__name__}: {e}"),
             )
             self._sync_buttons()
 
     def _quit(self) -> None:
-        _save_settings({"dest": self.dest.get().strip()})
+        _save_settings({**_load_settings(), "dest": self.dest.get().strip()})
         self.cancel.set()
         if getattr(self, "_wifi_server", None):
             self._wifi_server.stop()
