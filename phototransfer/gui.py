@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import calendar
 import json
 import os
 import queue
@@ -51,6 +52,109 @@ def _save_settings(settings: dict) -> None:
         SETTINGS_FILE.write_text(json.dumps(settings), encoding="utf-8")
     except OSError:
         pass  # remembering the folder is a convenience; never block closing the window
+
+
+class DateField(ttk.Frame):
+    """A date button that opens a month calendar (Mo-Su grid, month arrows, Clear and Today).
+
+    `var` holds the date as YYYY-MM-DD, or "" for no date; `on_change` runs after a pick or Clear.
+    """
+
+    def __init__(self, parent, var: tk.StringVar, placeholder: str, on_change) -> None:
+        super().__init__(parent)
+        self.var, self.placeholder, self.on_change = var, placeholder, on_change
+        self.pop: tk.Toplevel | None = None
+        self.btn = ttk.Button(self, command=self.toggle, width=16)
+        self.btn.pack()
+        var.trace_add("write", lambda *_: self._label())
+        self._label()
+
+    def _label(self) -> None:
+        text = self.var.get()
+        self.btn.config(text=(datetime.strptime(text, "%Y-%m-%d").strftime("%d %b %Y") if text else self.placeholder) + "   ▾")
+
+    def toggle(self) -> None:
+        if self.pop:
+            self.close()
+            return
+        try:
+            shown = datetime.strptime(self.var.get(), "%Y-%m-%d")
+        except ValueError:
+            shown = datetime.now()
+        self.year, self.month = shown.year, shown.month
+        self.pop = pop = tk.Toplevel(self)
+        pop.overrideredirect(True)
+        pop.configure(background=LINE, padx=1, pady=1)
+        self.body = tk.Frame(pop, background="white", padx=10, pady=8)
+        self.body.pack()
+        self._draw()
+        pop.update_idletasks()
+        x, y = self.winfo_rootx(), self.winfo_rooty() + self.winfo_height() + 2
+        pop.geometry(f"+{max(0, min(x, self.winfo_screenwidth() - pop.winfo_reqwidth()))}+{y}")
+        pop.bind("<Escape>", lambda _e: self.close())
+        pop.bind("<Button-1>", self._click_away)
+        pop.focus_set()
+        pop.grab_set()
+
+    def _click_away(self, e) -> None:
+        p = self.pop
+        if p and not (p.winfo_rootx() <= e.x_root < p.winfo_rootx() + p.winfo_width()
+                      and p.winfo_rooty() <= e.y_root < p.winfo_rooty() + p.winfo_height()):
+            self.close()
+
+    def close(self) -> None:
+        if self.pop:
+            self.pop.grab_release()
+            self.pop.destroy()
+            self.pop = None
+
+    def _shift(self, months: int) -> None:
+        n = self.year * 12 + self.month - 1 + months
+        self.year, self.month = n // 12, n % 12 + 1
+        self._draw()
+
+    def _pick(self, value: str) -> None:
+        self.close()
+        self.var.set(value)
+        self.on_change()
+
+    def _draw(self) -> None:
+        for w in self.body.winfo_children():
+            w.destroy()
+        font = ("Segoe UI", 10)
+        head = tk.Frame(self.body, background="white")
+        head.pack(fill="x", pady=(0, 6))
+        tk.Label(head, text=datetime(self.year, self.month, 1).strftime("%B %Y"), background="white", foreground=TEXT,
+                 font=("Segoe UI", 10, "bold")).pack(side="left")
+        for arrow, step in (("↓", 1), ("↑", -1)):
+            b = tk.Label(head, text=arrow, background="white", foreground=TEXT, font=("Segoe UI", 13), cursor="hand2", padx=8)
+            b.pack(side="right")
+            b.bind("<Button-1>", lambda _e, s=step: self._shift(s))
+        grid = tk.Frame(self.body, background="white")
+        grid.pack()
+        for c, name in enumerate(("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")):
+            tk.Label(grid, text=name, width=4, background="white", foreground=TEXT, font=("Segoe UI", 10, "bold")).grid(row=0, column=c)
+        today, chosen = datetime.now().date(), self.var.get()
+        for i, d in enumerate(calendar.Calendar(0).itermonthdates(self.year, self.month)):
+            inside, sel = d.month == self.month, d.isoformat() == chosen
+            cell = tk.Label(grid, text=str(d.day), width=4, font=font, cursor="hand2",
+                            background=GREEN if sel else "white", foreground="white" if sel else TEXT if inside else "#b3baac",
+                            highlightthickness=1, highlightbackground=GREEN_DARK if d == today and not sel else cell_bg(sel))
+            cell.grid(row=1 + i // 7, column=i % 7, pady=1)
+            cell.bind("<Button-1>", lambda _e, v=d.isoformat(): self._pick(v))
+            if not sel:
+                cell.bind("<Enter>", lambda _e, w=cell: w.config(background=SOFT))
+                cell.bind("<Leave>", lambda _e, w=cell: w.config(background="white"))
+        foot = tk.Frame(self.body, background="white")
+        foot.pack(fill="x", pady=(8, 0))
+        for text, side, value in (("Clear", "left", ""), ("Today", "right", today.isoformat())):
+            b = tk.Label(foot, text=text, background="white", foreground=GREEN_DARK, font=font, cursor="hand2")
+            b.pack(side=side)
+            b.bind("<Button-1>", lambda _e, v=value: self._pick(v))
+
+
+def cell_bg(selected: bool) -> str:
+    return GREEN if selected else "white"
 
 
 class App:
@@ -181,15 +285,12 @@ class App:
         ttk.Checkbutton(bar, text="Select all", variable=self.all_ticked, command=self._toggle_all).pack(side="left", padx=(16, 0))
         self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
         ttk.Button(bar, text="Reset", command=self.clear_dates).pack(side="right")
-        ttk.Button(bar, text="Apply", command=self._fill).pack(side="right", padx=4)
-        for var, text in ((self.date_to, "to"), (self.date_from, "Taken from")):
-            e = ttk.Entry(bar, textvariable=var, width=11)
-            e.pack(side="right", padx=(4, 0))
-            e.bind("<Return>", lambda _e: self._fill())
+        for var, text, hint in ((self.date_to, "to", "Any date"), (self.date_from, "Taken from", "Any date")):
+            DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
             ttk.Label(bar, text=text, style="Muted.TLabel").pack(side="right", padx=(10, 0))
         ttk.Label(self.root, style="Muted.TLabel", padding=(16, 2, 16, 6),
                   text="Click a picture to select it  ·  Shift-click picks a range  ·  double-click to enlarge  ·  "
-                       "click a day heading to select the day  ·  dates like 2026-10-27  ·  Ctrl+A all, Esc none").pack(fill="x")
+                       "click a day heading to select the day  ·  Ctrl+A all, Esc none").pack(fill="x")
 
         # Everything else lives in Settings, which starts hidden.
         self.settings = ttk.Frame(self.root, style="Card.TFrame", padding=14)
