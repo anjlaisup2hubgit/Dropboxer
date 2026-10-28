@@ -33,10 +33,6 @@ class IPhoneSource(Source):
         await afc.__aenter__()
         return cls(lockdown, afc)
 
-    @property
-    def device_name(self) -> str:
-        return str(self._lockdown.all_values.get("DeviceName", "iPhone"))
-
     async def list_files(self, root: str = "/DCIM") -> list[RemoteFile]:
         out: list[RemoteFile] = []
         stack = [root.rstrip("/") or "/"]

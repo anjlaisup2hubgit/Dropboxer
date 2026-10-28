@@ -51,7 +51,7 @@ MANUAL = [
     ("p", "Hold the left button and drag a box to select every picture it touches. Drag a box over pictures that are already selected (or start it on one) to unselect them."),
     ("p", "Drag past the top or bottom of the list to scroll while boxing."),
     ("p", "Double-click a picture to open a larger preview; photos, videos and music play there."),
-    ("p", "Ctrl+A selects all shown files, Esc clears the selection. Select all / Deselect all are above the list."),
+    ("p", "Ctrl+A selects all shown files, Esc clears the selection. Untick Select all above the list to clear it too."),
     ("h", "Filters and dates"),
     ("p", "Gallery shows photos and videos together; Music, Documents and Archives show those kinds; All shows everything."),
     ("p", "From / to keep only files dated in that range. Clear dates clears both. Selecting only counts files that are shown."),
@@ -419,8 +419,6 @@ class App:
         self.all_ticked = tk.BooleanVar(value=False)
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0))
-        self.deselect_btn = ttk.Button(bar, text=T("Deselect all"), command=self.clear_selection, state="disabled")  # enabled while something is selected
-        self.deselect_btn.pack(side="left", padx=(10, 0))
         self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
         self.connect_btn = ttk.Button(bar, text=T("Reload"), command=self.connect)  # iPhone to PC, once files are listed
         self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi share"), command=self.wifi_share)
@@ -430,9 +428,6 @@ class App:
             ttk.Label(bar, text=text).pack(side="right", padx=(10, 0))
         ttk.Label(self.root, style="Muted.TLabel", padding=(16, 2, 16, 6),
                   text=T("Shift-click selects a range  ·  click a day to select all of it")).pack(fill="x")
-
-        self.by_date = tk.BooleanVar(value=True)  # copies are always sorted into date folders
-        self.jobs = tk.IntVar(value=1)
 
         mid = ttk.Frame(self.root, padding=(16, 0))
         mid.pack(fill="both", expand=True)
@@ -796,7 +791,6 @@ class App:
     def _update_count(self) -> None:
         sel = self.selected_files()
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
-        self.deselect_btn.config(state="normal" if sel else "disabled")
         self.count.config(text=f"{T('{n} selected', n=len(sel))}  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
 
@@ -852,24 +846,19 @@ class App:
         files, dest = self.selected_files(), self.dest.get().strip()
         if not files or not dest:
             return
-        try:
-            jobs = min(4, max(1, int(self.jobs.get())))
-        except tk.TclError:  # empty or non-numeric Parallel box
-            jobs = 1
-            self.jobs.set(1)
         self.cancel.clear()
         self._set_progress(0)
         self.total = sum(f.size for f in files)
         self.done: dict[str, int] = {}
         self.verb, self.nfiles, self.sizes = "Copying", len(files), {}
         self.status.config(text=T("Copying {n} files…", n=len(files)))
-        self._submit(self._copy(files, Path(dest), jobs, self.by_date.get()))
+        self._submit(self._copy(files, Path(dest)))
 
-    async def _copy(self, files, dest, jobs, by_date) -> None:
+    async def _copy(self, files, dest) -> None:
         def progress(path: str, done: int, total: int) -> None:
             self.events.put(("progress", path, done, total))
 
-        summary = await copy_files(self.source, files, DEFAULT_ROOT, dest, progress, jobs, by_date, self.cancel.is_set)
+        summary = await copy_files(self.source, files, DEFAULT_ROOT, dest, progress, 1, True, self.cancel.is_set)  # one at a time, sorted into date folders
         self.events.put(("finished", summary))
 
     def wifi_share(self) -> None:
