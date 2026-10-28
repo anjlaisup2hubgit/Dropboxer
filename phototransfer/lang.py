@@ -42,8 +42,6 @@ VI = {
     "Any date": "Mọi ngày",
     "Clear": "Xóa",
     "Today": "Hôm nay",
-    "Shift-click selects a range  ·  click a day to select all of it":
-        "Shift + nhấp để chọn một dãy  ·  nhấp vào ngày để chọn cả ngày  ·  kéo chuột để quét chọn",
     "USB-C cable": "Cáp USB-C",
     "Wi-Fi share": "Chia sẻ Wi-Fi",
     "Unlock your iPhone and tap Trust.": "Mở khóa iPhone và nhấn Tin cậy.",

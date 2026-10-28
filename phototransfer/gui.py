@@ -122,7 +122,7 @@ class DateField(ttk.Frame):
         super().__init__(parent)
         self.var, self.placeholder, self.on_change = var, placeholder, on_change
         self.pop: tk.Toplevel | None = None
-        self.btn = ttk.Button(self, command=self.toggle, width=12)
+        self.btn = ttk.Button(self, command=self.toggle, style="Narrow.TButton", width=-11)  # minimum width: a picked date is longer than "Any date"
         self.btn.pack()
         var.trace_add("write", lambda *_: self._label())
         self._label()
@@ -303,6 +303,7 @@ class App:
                     darkcolor=PAPER, borderwidth=1, padding=(14, 6), relief="solid")
         s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#aab4bf"), ("active", GREEN_DARK)],
               bordercolor=[("disabled", LINE), ("active", GREEN)])
+        s.configure("Narrow.TButton", padding=(6, 6))  # the date buttons and Clear dates
         for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#b5cde8", "white", True),
                                                 ("Danger", PAPER, "#fbeceb", PAPER, RED, False)):
             s.configure(f"{name}.TButton", background=bg, foreground=fg, font=("Segoe UI", 10, "bold"),
@@ -410,7 +411,7 @@ class App:
         self.send_note.pack(side="left")
 
         # Filters and select-all sit in view, because they are used all the time.
-        bar = ttk.Frame(self.root, padding=(16, 0, 16, 2))
+        bar = ttk.Frame(self.root, padding=(16, 0, 16, 8))
         bar.pack(fill="x")
         self.kind = tk.StringVar(value="Gallery")
         for name in KINDS:
@@ -422,12 +423,10 @@ class App:
         self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
         self.connect_btn = ttk.Button(bar, text=T("Reload"), command=self.connect)  # iPhone to PC, once files are listed
         self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi share"), command=self.wifi_share)
-        ttk.Button(bar, text=T("Clear dates"), command=self.clear_dates).pack(side="right")
+        ttk.Button(bar, text=T("Clear dates"), style="Narrow.TButton", command=self.clear_dates).pack(side="right")
         for var, text, hint in ((self.date_to, T("to"), T("Any date")), (self.date_from, T("From"), T("Any date"))):
             DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
             ttk.Label(bar, text=text).pack(side="right", padx=(10, 0))
-        ttk.Label(self.root, style="Muted.TLabel", padding=(16, 2, 16, 6),
-                  text=T("Shift-click selects a range  ·  click a day to select all of it")).pack(fill="x")
 
         mid = ttk.Frame(self.root, padding=(16, 0))
         mid.pack(fill="both", expand=True)
