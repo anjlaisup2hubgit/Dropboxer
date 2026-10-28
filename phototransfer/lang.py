@@ -27,6 +27,7 @@ VI = {
     "Videos": "Video",
     "Music": "Nhạc",
     "Documents": "Tài liệu",
+    "Archives": "Tệp nén",
     "Select all": "Chọn tất cả",
     "Deselect all": "Bỏ chọn tất cả",
     "Reload": "Tải lại",

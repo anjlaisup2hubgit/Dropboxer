@@ -32,12 +32,14 @@ MAX_PREVIEW = 3000  # most files listed from one folder in PC to iPhone
 AUDIO = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".wma", ".webm", ".mka"}  # .webm: YouTube audio downloads
 DOCS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".csv", ".md", ".odt", ".ods", ".odp",
         ".pages", ".numbers", ".key", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr"}
+ARCHIVES = {".zip", ".rar", ".7z", ".tar", ".gz", ".tgz"}
 KINDS = {
     "All": None,
     "Photos": {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff", ".webp"},
     "Videos": {".mov", ".mp4", ".m4v"},
     "Music": AUDIO,
     "Documents": DOCS,
+    "Archives": ARCHIVES,
 }
 # PC to iPhone destinations. The Music app cannot be filled over USB, so music goes into the Documents
 # folder of a player that allows file sharing; the first choice is a plain folder (what photos use).
@@ -884,6 +886,7 @@ class App:
         names = filedialog.askopenfilenames(title=T("Choose files to send to the phone"), filetypes=[
             (T("All files"), "*.*"), (T("Music"), " ".join(f"*{e}" for e in sorted(AUDIO))),
             (T("Documents"), " ".join(f"*{e}" for e in sorted(DOCS))),
+            (T("Archives"), " ".join(f"*{e}" for e in sorted(ARCHIVES))),
             (T("Photos and videos"), " ".join(f"*{e}" for e in sorted(KINDS["Photos"] | KINDS["Videos"])))])
         if names:
             self._add_to_send([Path(n) for n in names])
@@ -895,7 +898,7 @@ class App:
 
     def _show_folder(self, folder: Path) -> None:
         """List the photos, videos, music and documents inside a folder (nothing ticked yet) so they can be previewed and picked."""
-        exts = KINDS["Photos"] | KINDS["Videos"] | AUDIO | DOCS
+        exts = KINDS["Photos"] | KINDS["Videos"] | AUDIO | DOCS | ARCHIVES
         self.status.config(text=T("Looking in {folder}…", folder=folder))
 
         def scan() -> None:
