@@ -460,7 +460,7 @@ class App:
             msg = ("Nothing here yet."
                    if self.mode.get() == "send" and not self.all_files else
                    "No files match these filters." if self.all_files else
-                   "Plug in your iPhone, unlock it,\ntap Trust, then click Connect iPhone.")
+                   "Connect your iPhone.")
             c.create_text(c.winfo_width() // 2, c.winfo_height() // 2, text=msg, fill=MUTED, justify="center",
                           font=("Segoe UI", 13))
             return
