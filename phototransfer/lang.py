@@ -102,6 +102,23 @@ VI = {
     "Language": "Ngôn ngữ",
     "Mo": "T2", "Tu": "T3", "We": "T4", "Th": "T5", "Fr": "T6", "Sa": "T7", "Su": "CN",
     "Month {m} {y}": "Tháng {m} {y}",
+    "Selecting": "Chọn tệp",
+    "Click a picture to select it; click it again to unselect.": "Bấm vào một ảnh để chọn; bấm lần nữa để bỏ chọn.",
+    "Shift-click selects everything between your last click and this one (if the last click unselected, the range unselects).": "Giữ Shift và bấm để chọn mọi tệp từ lần bấm trước đến lần bấm này (nếu lần bấm trước là bỏ chọn thì cả đoạn sẽ được bỏ chọn).",
+    "Click a day's heading to select all of that day; click it again to unselect the whole day.": "Bấm vào tiêu đề của một ngày để chọn tất cả tệp trong ngày đó; bấm lần nữa để bỏ chọn cả ngày.",
+    "Hold the left button and drag a box to select every picture it touches. Drag a box over pictures that are already selected (or start it on one) to unselect them.": "Giữ chuột trái và kéo một khung để chọn mọi ảnh mà khung chạm tới. Kéo khung lên những ảnh đã được chọn (hoặc bắt đầu kéo từ một ảnh đã chọn) để bỏ chọn chúng.",
+    "Drag past the top or bottom of the list to scroll while boxing.": "Kéo khung ra ngoài mép trên hoặc mép dưới của danh sách để cuộn.",
+    "Double-click a picture to open a larger preview; photos, videos and music play there.": "Bấm đúp vào một ảnh để mở bản xem lớn hơn; ảnh, video và nhạc sẽ chạy ở đó.",
+    "Ctrl+A selects all shown files, Esc clears the selection. Select all / Deselect all are above the list.": "Ctrl+A chọn tất cả tệp đang hiển thị, Esc bỏ chọn. Nút Chọn tất cả / Bỏ chọn tất cả nằm phía trên danh sách.",
+    "Filters and dates": "Bộ lọc và ngày",
+    "Gallery shows photos and videos together; Music, Documents and Archives show those kinds; All shows everything.": "Thư viện hiển thị ảnh và video cùng nhau; Nhạc, Tài liệu và Lưu trữ hiển thị đúng loại đó; Tất cả hiển thị mọi thứ.",
+    "From / to keep only files dated in that range. Reset clears both. Selecting only counts files that are shown.": "Từ / đến chỉ giữ các tệp có ngày trong khoảng đó. Đặt lại sẽ xóa cả hai. Việc chọn chỉ tính các tệp đang hiển thị.",
+    "Add files... picks single files; Folder... lists everything supported inside a folder (nothing is selected yet). Then select and press Send.": "Thêm tệp... để chọn từng tệp; Thư mục... liệt kê mọi tệp được hỗ trợ trong một thư mục (chưa chọn gì). Sau đó hãy chọn tệp rồi bấm Gửi.",
+    "Sent files go into the folder named on the iPhone, so they do not appear in the Photos app. Sending into /DCIM is refused because it can confuse Photos.": "Tệp gửi đi nằm trong thư mục đã đặt tên trên iPhone nên sẽ không hiện trong ứng dụng Ảnh. Không cho gửi vào /DCIM vì có thể làm ứng dụng Ảnh bị rối.",
+    "Connect the iPhone by USB, unlock it and tap Trust. Copied files are sorted into date folders under the folder in Save in.": "Cắm iPhone bằng cáp USB, mở khóa và chạm Tin cậy. Tệp được sao chép sẽ xếp vào các thư mục theo ngày bên trong thư mục ở ô Lưu vào.",
+    "Wi-Fi shares a page the phone's browser can use without a cable. The Safari page must stay open and in front while it uploads.": "Wi-Fi chia sẻ một trang để trình duyệt trên điện thoại dùng mà không cần cáp. Trang Safari phải luôn mở và ở phía trước trong lúc tải lên.",
+    "Accepted file types": "Các loại tệp được chấp nhận",
+    "Anything else (for example .bin or .dll) is not accepted by the Wi-Fi page. Installers are only stored, never run. Kindle and other e-book formats need a reader app on the phone.": "Các loại khác (ví dụ .bin hoặc .dll) không được trang Wi-Fi chấp nhận. Trình cài đặt chỉ được lưu, không bao giờ được chạy. Kindle và các định dạng sách điện tử khác cần ứng dụng đọc trên điện thoại.",
 }
 
 
