@@ -318,7 +318,7 @@ def _wifi(tmp_path):
     (share / "trip").mkdir(parents=True)
     Image.new("RGB", (400, 300), "red").save(share / "trip" / "a.jpg")
     (share / "clip.mov").write_bytes(bytes(range(100)))
-    (share / "secret.txt").write_text("no")
+    (share / "secret.exe").write_text("no")
     (tmp_path / "outside.jpg").write_bytes(b"x")
     srv = WifiServer(share, tmp_path / "inbox", port=0)
     srv.start()
@@ -343,8 +343,8 @@ def test_wifi_needs_token_and_stays_in_folder(tmp_path):
         assert _get(root + "/wrongtoken/")[0] == 404
         assert _get(root + "/")[0] == 404
         s, body, _ = _get(base + "/")
-        assert s == 200 and b"a.jpg" in body and b"secret.txt" not in body
-        assert _get(base + "/file/secret.txt")[0] == 404          # not a media type
+        assert s == 200 and b"a.jpg" in body and b"secret.exe" not in body
+        assert _get(base + "/file/secret.exe")[0] == 404          # not a media type
         assert _get(base + "/file/..%2foutside.jpg")[0] == 404    # outside the folder
         assert _get(base + "/file/../outside.jpg")[0] == 404
         s, png, _ = _get(base + "/thumb/trip/a.jpg")
@@ -433,7 +433,7 @@ def test_wifi_zip_of_selected_files(tmp_path):
 
     srv, base = _wifi(tmp_path)
     try:
-        body = urllib.parse.urlencode([("f", "trip/a.jpg"), ("f", "clip.mov"), ("f", "secret.txt"), ("f", "../outside.jpg")]).encode()
+        body = urllib.parse.urlencode([("f", "trip/a.jpg"), ("f", "clip.mov"), ("f", "secret.exe"), ("f", "../outside.jpg")]).encode()
         with urllib.request.urlopen(urllib.request.Request(base + "/zip", data=body, method="POST")) as r:
             data = r.read()
         zf = zipfile.ZipFile(io.BytesIO(data))
@@ -454,12 +454,12 @@ def test_wifi_delete_selected_files(tmp_path, monkeypatch):
     monkeypatch.setattr(wifi, "move_to_trash", lambda p: (trashed.append(p.name), p.unlink()))
     srv, base = _wifi(tmp_path)
     try:
-        (tmp_path / "secret.txt").write_text("keep")
-        body = urllib.parse.urlencode([("f", "clip.mov"), ("f", "secret.txt"), ("f", "../outside.jpg")]).encode()
+        (tmp_path / "secret.exe").write_text("keep")
+        body = urllib.parse.urlencode([("f", "clip.mov"), ("f", "secret.exe"), ("f", "../outside.jpg")]).encode()
         with urllib.request.urlopen(urllib.request.Request(base + "/delete", data=body, method="POST")) as r:
             assert r.read() == b"1"
         assert trashed == ["clip.mov"] and not (tmp_path / "share" / "clip.mov").exists()
-        assert (tmp_path / "secret.txt").exists() and (tmp_path / "share" / "trip" / "a.jpg").exists()
+        assert (tmp_path / "secret.exe").exists() and (tmp_path / "share" / "trip" / "a.jpg").exists()
         with pytest.raises(urllib.error.HTTPError) as e:  # nothing valid selected
             urllib.request.urlopen(urllib.request.Request(base + "/delete", data=b"f=nope.jpg", method="POST"))
         assert e.value.code == 400
@@ -530,13 +530,15 @@ def test_wifi_upload_saves_safely(tmp_path):
         assert put("IMG_1.HEIC", b"abc") == 200
         assert put("IMG_1.HEIC", b"def") == 200                      # same name: not overwritten
         assert put("..%2f..%2fevil.jpg", b"z") == 200                # path stripped to a plain name
-        assert put("run.exe", b"z") == 415                           # not a photo/video
+        assert put("run.exe", b"z") == 415                           # not a photo/video/document
+        assert put("Notes.PDF", b"%PDF") == 200 and put("sheet.xlsx", b"PK") == 200  # documents are accepted
         inbox = tmp_path / "inbox"
         assert (inbox / "IMG_1.HEIC").read_bytes() == b"abc"
         assert (inbox / "IMG_1 (1).HEIC").read_bytes() == b"def"
+        assert (inbox / "Notes.PDF").read_bytes() == b"%PDF"
         assert (inbox / "evil.jpg").exists() and not (tmp_path / "evil.jpg").exists()
         assert int((inbox / "IMG_1.HEIC").stat().st_mtime) == 1_600_000_000
         assert not list(inbox.glob(".*.part"))
-        assert put("x.jpg", b"1") == 200 and len(srv.received) == 4
+        assert put("x.jpg", b"1") == 200 and len(srv.received) == 6
     finally:
         srv.stop()

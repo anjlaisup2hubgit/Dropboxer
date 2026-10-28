@@ -26,6 +26,7 @@ VI = {
     "Photos": "Ảnh",
     "Videos": "Video",
     "Music": "Nhạc",
+    "Documents": "Tài liệu",
     "Select all": "Chọn tất cả",
     "Deselect all": "Bỏ chọn tất cả",
     "Reload": "Tải lại",

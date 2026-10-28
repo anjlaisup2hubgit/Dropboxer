@@ -25,13 +25,20 @@ from .thumbs import CACHE_DIR, MAX_BYTES, local_thumb, make_thumb
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".gif", ".tiff", ".webp"}
 VIDEO_EXTS = {".mov", ".mp4", ".m4v"}
-MEDIA_EXTS = IMAGE_EXTS | VIDEO_EXTS
+DOC_EXTS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".csv", ".md", ".odt", ".ods", ".odp",
+            ".pages", ".numbers", ".key", ".epub"}
+MEDIA_EXTS = IMAGE_EXTS | VIDEO_EXTS | DOC_EXTS
 MAX_LISTED = 3000
 CHUNK = 1 << 20
 WEB_THUMB = 240
 VIEW_MAX = 2400  # longest side of the browser-friendly copy of a HEIC
 MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".heic": "image/heic", ".gif": "image/gif",
-        ".tiff": "image/tiff", ".webp": "image/webp", ".mov": "video/quicktime", ".mp4": "video/mp4", ".m4v": "video/x-m4v"}
+        ".tiff": "image/tiff", ".webp": "image/webp", ".mov": "video/quicktime", ".mp4": "video/mp4", ".m4v": "video/x-m4v",
+        ".pdf": "application/pdf", ".txt": "text/plain; charset=utf-8", ".csv": "text/csv; charset=utf-8", ".md": "text/markdown; charset=utf-8",
+        ".rtf": "application/rtf", ".epub": "application/epub+zip", ".doc": "application/msword",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xls": "application/vnd.ms-excel", ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".ppt": "application/vnd.ms-powerpoint", ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"}
 
 
 def move_to_trash(p: Path) -> None:
@@ -82,7 +89,7 @@ def tailscale_ip() -> str | None:
 
 
 def safe_name(name: str) -> str | None:
-    """A plain file name for an upload, or None if it is not a photo/video we accept."""
+    """A plain file name for an upload, or None if it is not a photo, video or document we accept."""
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", Path(name.replace("\\", "/")).name).strip(" .")
     if not name or Path(name).suffix.lower() not in MEDIA_EXTS:
         return None
@@ -221,6 +228,8 @@ small,.muted{{color:#6b7568}} .ok{{color:#4d8a00}} .bad{{color:#c0392b}}
 .grid img,.grid video{{width:100%;height:100%;object-fit:cover}}
 #log div{{font-size:.85rem;margin:4px 0;color:#6b7568}} #log div.ok{{color:#4d8a00}} #log div.bad{{color:#c0392b}}
 .grid img,.grid video{{pointer-events:none}}
+.doc{{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;text-align:center;font-size:.7rem;word-break:break-all;overflow:hidden;color:#6b7568}}
+.doc b{{font-size:1.1rem;color:#4d8a00;margin-bottom:4px}}
 .play{{position:absolute;right:6px;bottom:4px;font-size:.8rem;color:#fff;text-shadow:0 0 3px #000}}
 #bar{{margin:8px 0}} #bar button{{margin-right:6px}}
 .grid a.on{{border-color:#5ea500}}
@@ -228,7 +237,7 @@ small,.muted{{color:#6b7568}} .ok{{color:#4d8a00}} .bad{{color:#c0392b}}
 </style></head><body>
 <h2>Send to this PC</h2><div class="up">
 Photos: <input id="f" type="file" multiple accept="image/*,video/*"><br><br>
-Long videos (if the tick will not press): save them to Files first, then pick here<br>
+Documents (PDF, Word, Excel, PowerPoint, text…) and long videos (if the tick will not press: save them to Files first): pick here<br>
 <input id="f2" type="file" multiple> <br><br><button id="upbtn" class="pri" onclick="up()">Upload</button> <button id="stopbtn" onclick="stop()" hidden class="danger">Stop</button>
 <div id="total"></div><div id="log"></div></div>
 <h2>On this PC ({count} shown)</h2>
@@ -381,6 +390,9 @@ class _Handler(BaseHTTPRequestHandler):
             if p.suffix.lower() in IMAGE_EXTS:
                 inner = f'<img loading="lazy" src="/{tok}/thumb/{rel}" alt="">'
                 href = f"/{tok}/view/{rel}"
+            elif p.suffix.lower() in DOC_EXTS:  # no preview: a tile with the type and name; tapping downloads/opens it
+                inner = f'<span class="doc"><b>{html.escape(p.suffix[1:].upper())}</b>{html.escape(p.name)}</span>'
+                href = f"/{tok}/file/{rel}"
             else:  # a still from the video; the tile falls back to its grey box if none can be made
                 inner = f'<img loading="lazy" src="/{tok}/thumb/{rel}" alt="" onerror="this.remove()"><span class="play">▶</span>'
                 href = f"/{tok}/file/{rel}"
@@ -515,7 +527,7 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(HTTPStatus.NOT_FOUND, b"not found")
         name = safe_name(parse_qs(urlsplit(self.path).query).get("name", [""])[0])
         if name is None:
-            return self._send(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, b"only photos and videos are accepted")
+            return self._send(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, b"only photos, videos and documents are accepted")
         try:
             length = int(self.headers.get("Content-Length", ""))
         except ValueError:
