@@ -120,14 +120,14 @@ class DateField(ttk.Frame):
         super().__init__(parent)
         self.var, self.placeholder, self.on_change = var, placeholder, on_change
         self.pop: tk.Toplevel | None = None
-        self.btn = ttk.Button(self, command=self.toggle, width=16)
+        self.btn = ttk.Button(self, command=self.toggle, width=12)
         self.btn.pack()
         var.trace_add("write", lambda *_: self._label())
         self._label()
 
     def _label(self) -> None:
         text = self.var.get()
-        self.btn.config(text=(datetime.strptime(text, "%Y-%m-%d").strftime("%d %b %Y") if text else self.placeholder) + "   ▾")
+        self.btn.config(text=(datetime.strptime(text, "%Y-%m-%d").strftime("%d %b %Y") if text else self.placeholder) + " ▾")
 
     def toggle(self) -> None:
         if self.pop:
