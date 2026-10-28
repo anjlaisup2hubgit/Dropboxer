@@ -976,7 +976,7 @@ class App:
         scroll.pack(side="right", fill="y")
         text.pack(fill="both", expand=True)
         for kind, line in MANUAL:
-            text.insert("end", T(line) + "\n", "h" if kind == "h" else ())
+            text.insert("end", T(line) + "\n", kind if kind in ("h", "s") else ())
         text.insert("end", "\n")
         for name, exts in (("Gallery", PHOTOS | VIDEOS), ("Music", AUDIO), ("Documents", DOCS), ("Archives", ARCHIVES)):
             text.insert("end", T(name) + ": ", "h")
