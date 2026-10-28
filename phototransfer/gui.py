@@ -54,7 +54,7 @@ APP_NAME = "Dropboxer"
 PAPER = "#f8fafd"  # inputs, buttons and pop-ups: a touch lighter than the window
 BG, HEAD, PANEL, SOFT, LINE = "#eef3f8", "#e1e9f2", PAPER, "#e3eaf2", "#c9d5e2"
 TEXT, MUTED, GREEN, GREEN_DARK, RED = "#1f2933", "#66727f", "#2b6cb0", "#1f5290", "#b5352b"  # GREEN is the blue accent (name is historical)
-TICK_BLUE = "#2e9e4f"
+TICK_BLUE = "#2b6cb0"
 
 
 def _load_settings() -> dict:
