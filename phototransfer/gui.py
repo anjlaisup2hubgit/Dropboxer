@@ -508,11 +508,6 @@ class App:
                               text=Path(f.path).suffix.lstrip(".").upper())
             if is_video(f.path):
                 c.create_text(x0 + THUMB - 6, y0 + THUMB - 6, anchor="se", text="▶", fill="white", font=("Segoe UI", 10))
-            if self.mode.get() == "send":  # picked from many folders: show which file each tile is
-                name = Path(f.path).name
-                c.create_rectangle(x0, y0 + THUMB - 16, x0 + THUMB, y0 + THUMB, fill="#000000", stipple="gray50", outline="")
-                c.create_text(x0 + 4, y0 + THUMB - 8, anchor="w", fill="white", font=("Segoe UI", 8),
-                              text=name if len(name) <= 18 else name[:8] + "…" + name[-9:])
             if f.path in self.selected:
                 c.create_rectangle(x0, y0, x0 + THUMB, y0 + THUMB, outline=GREEN, width=3)
                 c.create_oval(x0 + 6, y0 + 6, x0 + 28, y0 + 28, fill=GREEN, outline="white", width=2)
