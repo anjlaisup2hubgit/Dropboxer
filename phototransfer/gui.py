@@ -54,6 +54,7 @@ APP_NAME = "Dropboxer"
 PAPER = "#f8f6ee"  # inputs, buttons and pop-ups: a touch lighter than the window
 BG, HEAD, PANEL, SOFT, LINE = "#f1eee4", "#e8e5d8", PAPER, "#e6e4d7", "#d3d0bf"
 TEXT, MUTED, GREEN, GREEN_DARK, RED = "#2b3226", "#6c7262", "#6a9444", "#527a32", "#b5574d"
+TICK_BLUE = "#0a84ff"
 
 
 def _load_settings() -> dict:
@@ -518,11 +519,14 @@ class App:
                 c.create_text(x0 + THUMB // 2, y0 + THUMB // 2, fill=MUTED, font=("Segoe UI", 12, "bold"),
                               text=Path(f.path).suffix.lstrip(".").upper())
             if is_video(f.path):
-                c.create_text(x0 + THUMB - 6, y0 + THUMB - 6, anchor="se", text="▶", fill="white", font=("Segoe UI", 10))
+                c.create_text(x0 + 6, y0 + THUMB - 6, anchor="sw", text="▶", fill="white", font=("Segoe UI", 10))
             if f.path in self.selected:
-                c.create_rectangle(x0, y0, x0 + THUMB, y0 + THUMB, outline=GREEN, width=3)
-                c.create_oval(x0 + 6, y0 + 6, x0 + 28, y0 + 28, fill=GREEN, outline="white", width=2)
-                c.create_text(x0 + 17, y0 + 17, text="✓", fill="white", font=("Segoe UI", 11, "bold"))
+                c.create_rectangle(x0, y0, x0 + THUMB, y0 + THUMB, outline=TICK_BLUE, width=3)
+                r = 13 * THUMB / 200  # blue disc with a white tick, bottom right, like the iPhone's
+                cx, cy = x0 + THUMB - 8 - r, y0 + THUMB - 8 - r
+                c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=TICK_BLUE, outline="white", width=2)
+                c.create_line(cx - r * .45, cy + r * .02, cx - r * .1, cy + r * .38, cx + r * .5, cy - r * .35,
+                              fill="white", width=max(2, int(r / 4)), capstyle="round", joinstyle="round")
             self.hits.append((x0, y0, x0 + THUMB, y0 + THUMB, "cell", f))
             self.visible.append(f)
         if self.band:  # the box being dragged
