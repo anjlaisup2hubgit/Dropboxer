@@ -26,7 +26,7 @@ from .thumbs import CACHE_DIR, MAX_BYTES, local_thumb, make_thumb
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".gif", ".tiff", ".webp"}
 VIDEO_EXTS = {".mov", ".mp4", ".m4v"}
 DOC_EXTS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".csv", ".md", ".odt", ".ods", ".odp",
-            ".pages", ".numbers", ".key", ".epub"}
+            ".pages", ".numbers", ".key", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr"}
 MEDIA_EXTS = IMAGE_EXTS | VIDEO_EXTS | DOC_EXTS
 MAX_LISTED = 3000
 CHUNK = 1 << 20
@@ -35,7 +35,7 @@ VIEW_MAX = 2400  # longest side of the browser-friendly copy of a HEIC
 MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".heic": "image/heic", ".gif": "image/gif",
         ".tiff": "image/tiff", ".webp": "image/webp", ".mov": "video/quicktime", ".mp4": "video/mp4", ".m4v": "video/x-m4v",
         ".pdf": "application/pdf", ".txt": "text/plain; charset=utf-8", ".csv": "text/csv; charset=utf-8", ".md": "text/markdown; charset=utf-8",
-        ".rtf": "application/rtf", ".epub": "application/epub+zip", ".doc": "application/msword",
+        ".rtf": "application/rtf", ".epub": "application/epub+zip", ".mobi": "application/x-mobipocket-ebook", ".azw3": "application/vnd.amazon.ebook", ".djvu": "image/vnd.djvu", ".doc": "application/msword",
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xls": "application/vnd.ms-excel", ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         ".ppt": "application/vnd.ms-powerpoint", ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"}

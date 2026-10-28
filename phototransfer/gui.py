@@ -31,7 +31,7 @@ PREVIEW = 900  # longest side of the picture opened by a double-click
 MAX_PREVIEW = 3000  # most files listed from one folder in PC to iPhone
 AUDIO = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".wma", ".webm", ".mka"}  # .webm: YouTube audio downloads
 DOCS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".csv", ".md", ".odt", ".ods", ".odp",
-        ".pages", ".numbers", ".key", ".epub"}
+        ".pages", ".numbers", ".key", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr"}
 KINDS = {
     "All": None,
     "Photos": {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff", ".webp"},
