@@ -33,8 +33,73 @@ def is_video(path: str) -> bool:
     return PurePosixPath(path).suffix.lower() in VIDEO_EXTS
 
 
+AUDIO_EXTS = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".wma", ".webm", ".mka"}
+
+
 def is_wav(path: str) -> bool:
     return PurePosixPath(path).suffix.lower() == ".wav"
+
+
+def is_audio(path: str) -> bool:
+    return PurePosixPath(path).suffix.lower() in AUDIO_EXTS
+
+
+def _decode_pcm(path: str | Path, rate: int, layout: str):
+    """Yield raw 16-bit PCM byte blocks of any audio file (mp3, m4a, webm, ...), resampled to `rate`."""
+    import av
+
+    with av.open(str(path)) as container:
+        stream = container.streams.audio[0]
+        resampler = av.AudioResampler(format="s16", layout=layout, rate=rate)
+        for frame in container.decode(stream):
+            for out in resampler.resample(frame):
+                yield bytes(out.planes[0])[: out.samples * out.format.bytes * len(out.layout.channels)]
+        for out in resampler.resample(None):
+            yield bytes(out.planes[0])[: out.samples * out.format.bytes * len(out.layout.channels)]
+
+
+def audio_to_wav(path: str | Path, dest: str | Path) -> None:
+    """Write any audio file as a CD-quality .wav so Windows can play it."""
+    import wave
+
+    with wave.open(str(dest), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(44100)
+        for block in _decode_pcm(path, 44100, "stereo"):
+            w.writeframes(block)
+
+
+def _wave_png(peaks: list[float], size: int, crop: bool) -> bytes:
+    from PIL import Image, ImageDraw
+
+    w_px, h_px = (size, size) if crop else (size, size // 2)
+    im = Image.new("RGB", (w_px, h_px), "#f3f6ee")
+    d, mid = ImageDraw.Draw(im), h_px / 2
+    for x in range(w_px):
+        p = peaks[x * len(peaks) // w_px] if peaks else 0
+        d.line([(x, mid - max(1, p * mid * 0.9)), (x, mid + max(1, p * mid * 0.9))], fill="#5ea500")
+    out = io.BytesIO()
+    im.save(out, "PNG")
+    return out.getvalue()
+
+
+def make_audio_thumb(path: str | Path, size: int = THUMB, crop: bool = False) -> bytes | None:
+    """Waveform PNG of any audio file, or None if it cannot be decoded."""
+    try:
+        import array
+
+        samples = array.array("h")
+        for block in _decode_pcm(path, 4000, "mono"):
+            samples.extend(array.array("h", block[: len(block) - len(block) % 2]))
+        if not samples:
+            return None
+        n = min(len(samples), max(size, 300))
+        step = len(samples) / n
+        peaks = [max(map(abs, samples[int(i * step): max(int(i * step) + 1, int((i + 1) * step))])) / 32768 for i in range(n)]
+        return _wave_png(peaks, size, crop)
+    except Exception:
+        return None
 
 
 def make_wave_thumb(path: str | Path, size: int = THUMB, crop: bool = False) -> bytes | None:
@@ -120,8 +185,8 @@ def local_thumb(path: str | Path, size: int = THUMB, crop: bool = False) -> byte
     try:
         if is_video(p.name):
             return make_video_thumb(p, size, crop)
-        if is_wav(p.name):
-            return make_wave_thumb(p, size, crop)
+        if is_audio(p.name):
+            return make_wave_thumb(p, size, crop) or make_audio_thumb(p, size, crop)
         if is_image(p.name) and p.stat().st_size <= MAX_BYTES:
             return make_thumb(p.read_bytes(), size, crop)
     except OSError:
