@@ -59,19 +59,19 @@ MANUAL = [
     ("p", "Add files... picks single files; Folder... lists everything supported inside a folder (nothing is selected yet). Then select and press Send."),
     ("p", "Sent files go into the folder named on the iPhone, so they do not appear in the Photos app. Sending into /DCIM is refused because it can confuse Photos."),
     ("h", "iPhone to PC"),
-    ("p", "With a USB cable:"),
+    ("s", "With a USB cable:"),
     ("p", "1. Plug the iPhone into the PC with the cable."),
     ("p", "2. Unlock the iPhone."),
     ("p", "3. Tap Trust on the iPhone."),
     ("p", "4. Click iPhone to PC at the top; the files are listed."),
     ("p", "5. Select files, check Save in, then click Copy. Copied files are sorted into date folders under the folder in Save in."),
-    ("p", "With Wi-Fi (no cable):"),
+    ("s", "With Wi-Fi (no cable):"),
     ("p", "1. Put the phone and the PC on the same Wi-Fi."),
     ("p", "2. Click Wi-Fi above the list."),
     ("p", "3. Scan the code with the phone's camera and open the link in Safari."),
     ("p", "4. First time only: if the window shows a \"First time, trust\" link, open it on the phone first."),
     ("p", "5. Choose files on the page. The Safari page must stay open and in front while it uploads."),
-    ("p", "With Tailscale (no Wi-Fi, no cable):"),
+    ("s", "With Tailscale (no Wi-Fi, no cable):"),
     ("p", "1. Install Tailscale on the PC and on the iPhone, and sign in to the same account on both."),
     ("p", "2. Turn Tailscale on for both; the PC must stay on."),
     ("p", "3. Click Wi-Fi above the list on the PC."),
@@ -970,6 +970,7 @@ class App:
         text = tk.Text(win, wrap="word", background=PAPER, foreground=TEXT, relief="flat", padx=18, pady=14,
                        font=("Segoe UI", 10), spacing1=2, spacing3=3, highlightthickness=1, highlightbackground=LINE)
         text.tag_configure("h", font=("Segoe UI", 12, "bold"), foreground=GREEN_DARK, spacing1=12, spacing3=4)
+        text.tag_configure("s", font=("Segoe UI", 10, "bold"), spacing1=8)
         scroll = ttk.Scrollbar(win, command=text.yview)
         text.config(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
