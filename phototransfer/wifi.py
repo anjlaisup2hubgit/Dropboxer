@@ -28,6 +28,7 @@ VIDEO_EXTS = {".mov", ".mp4", ".m4v"}
 DOC_EXTS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".csv", ".md", ".odt", ".ods", ".odp",
             ".pages", ".numbers", ".key", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr",
             ".zip", ".rar", ".7z", ".tar", ".gz", ".tgz",
+            ".bz2", ".xz", ".zst", ".lz4", ".tbz2", ".txz", ".cab", ".iso", ".dmg",
             ".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus",
             ".wma", ".mka", ".aiff", ".aif", ".caf", ".amr", ".mid", ".midi"}
 MEDIA_EXTS = IMAGE_EXTS | VIDEO_EXTS | DOC_EXTS
