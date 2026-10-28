@@ -203,10 +203,18 @@ class App:
 
         root.title(APP_NAME)
         k = root.winfo_fpixels("1i") / 96
-        # Fit the screen (minus the taskbar and title bar) and open centred, so nothing starts off screen.
-        w = min(round(1100 * k), root.winfo_screenwidth() - 40)
-        h = min(round(860 * k), root.winfo_screenheight() - 120)
-        root.geometry(f"{w}x{h}+{(root.winfo_screenwidth() - w) // 2}+{max(0, (root.winfo_screenheight() - h) // 2 - 30)}")
+        # Fit the work area (the screen minus the taskbar) and open centred in it, so nothing starts hidden.
+        left, top, right, bottom = 0, 0, root.winfo_screenwidth(), root.winfo_screenheight() - 48
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+
+            area = wintypes.RECT()
+            if ctypes.windll.user32.SystemParametersInfoW(0x30, 0, ctypes.byref(area), 0):  # SPI_GETWORKAREA
+                left, top, right, bottom = area.left, area.top, area.right, area.bottom
+        w = min(round(1100 * k), right - left - 20)
+        h = min(round(860 * k), bottom - top - 50)  # 50: the title bar and window borders
+        root.geometry(f"{w}x{h}+{left + (right - left - w) // 2}+{top + (bottom - top - h - 40) // 2}")
         self._build()
         root.protocol("WM_DELETE_WINDOW", self._quit)
         root.bind("<Control-a>", lambda e: self._key(e, self.select_all))
