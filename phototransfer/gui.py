@@ -316,6 +316,14 @@ class App:
               foreground=[("selected", "white")], bordercolor=[("selected", GREEN), ("active", GREEN)])
         s.configure("TEntry", fieldbackground=PAPER, foreground=TEXT, insertcolor=TEXT, padding=6)
         s.map("TEntry", fieldbackground=[("readonly", SOFT)], bordercolor=[("focus", GREEN)])
+        s.configure("TCombobox", fieldbackground=PAPER, background=PAPER, foreground=TEXT, arrowcolor=TEXT, padding=5,
+                    selectbackground=PAPER, selectforeground=TEXT)  # readonly boxes looked greyed out and turned dark when focused
+        s.map("TCombobox", fieldbackground=[("readonly", PAPER)], foreground=[("readonly", TEXT)],
+              selectbackground=[("readonly", PAPER)], selectforeground=[("readonly", TEXT)], bordercolor=[("focus", GREEN)])
+        self.root.option_add("*TCombobox*Listbox.background", PAPER)
+        self.root.option_add("*TCombobox*Listbox.foreground", TEXT)
+        self.root.option_add("*TCombobox*Listbox.selectBackground", GREEN)
+        self.root.option_add("*TCombobox*Listbox.selectForeground", "white")
         s.configure("TSpinbox", fieldbackground=PAPER, foreground=TEXT, insertcolor=TEXT, arrowcolor=TEXT, padding=4)
         s.configure("TCheckbutton", background=BG, foreground=TEXT, indicatorforeground="white")
         s.map("TCheckbutton", background=[("active", BG)], indicatorbackground=[("selected", GREEN), ("!selected", PAPER)])
@@ -419,7 +427,7 @@ class App:
         ttk.Button(bar, text=T("Clear dates"), command=self.clear_dates).pack(side="right")
         for var, text, hint in ((self.date_to, T("to"), T("Any date")), (self.date_from, T("From"), T("Any date"))):
             DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
-            ttk.Label(bar, text=text, style="Muted.TLabel").pack(side="right", padx=(10, 0))
+            ttk.Label(bar, text=text).pack(side="right", padx=(10, 0))
         ttk.Label(self.root, style="Muted.TLabel", padding=(16, 2, 16, 6),
                   text=T("Shift-click selects a range  ·  click a day to select all of it")).pack(fill="x")
 
