@@ -194,7 +194,10 @@ class App:
 
         root.title(APP_NAME)
         k = root.winfo_fpixels("1i") / 96
-        root.geometry(f"{round(1100 * k)}x{round(860 * k)}")
+        # Fit the screen (minus the taskbar and title bar) and open centred, so nothing starts off screen.
+        w = min(round(1100 * k), root.winfo_screenwidth() - 40)
+        h = min(round(860 * k), root.winfo_screenheight() - 120)
+        root.geometry(f"{w}x{h}+{(root.winfo_screenwidth() - w) // 2}+{max(0, (root.winfo_screenheight() - h) // 2 - 30)}")
         self._build()
         root.protocol("WM_DELETE_WINDOW", self._quit)
         root.bind("<Control-a>", lambda e: self._key(e, self.select_all))
@@ -342,7 +345,9 @@ class App:
 
         self.status = ttk.Label(self.root, text="Plug in your iPhone, unlock it, tap Trust, then click Connect iPhone.",
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
-        self.status.pack(fill="x")
+        # Pin the action panel and status line to the bottom so a short window shrinks the picture grid, not them.
+        self.status.pack(side="bottom", fill="x", before=mid)
+        panel.pack(side="bottom", fill="x", padx=16, pady=(10, 4), before=mid)
 
     def toggle_settings(self) -> None:
         if self.settings.winfo_manager():
@@ -505,7 +510,8 @@ class App:
             f = h[5]
             if e.state & 0x1 and self.last_clicked in self.shown:  # Shift: everything between the two clicks
                 i, j = sorted((self.shown.index(self.last_clicked), self.shown.index(f)))
-                self.selected |= {g.path for g in self.shown[i:j + 1]}
+                span = {g.path for g in self.shown[i:j + 1]}  # the range follows the first click: it ticked, or unticked
+                self.selected = self.selected | span if self.last_clicked.path in self.selected else self.selected - span
             else:
                 self.selected ^= {f.path}
             self.last_clicked = f
