@@ -51,9 +51,9 @@ SEND_TO = {
 }
 APP_NAME = "Dropboxer"
 # Warm map-paper background, thin lines, one grass-green accent.
-PAPER = "#f8f6ee"  # inputs, buttons and pop-ups: a touch lighter than the window
-BG, HEAD, PANEL, SOFT, LINE = "#f1eee4", "#e8e5d8", PAPER, "#e6e4d7", "#d3d0bf"
-TEXT, MUTED, GREEN, GREEN_DARK, RED = "#2b2326", "#7a6f72", "#8f2d3f", "#741f30", "#b5352b"  # GREEN is the maroon accent
+PAPER = "#f8fafd"  # inputs, buttons and pop-ups: a touch lighter than the window
+BG, HEAD, PANEL, SOFT, LINE = "#eef3f8", "#e1e9f2", PAPER, "#e3eaf2", "#c9d5e2"
+TEXT, MUTED, GREEN, GREEN_DARK, RED = "#1f2933", "#66727f", "#2b6cb0", "#1f5290", "#b5352b"  # GREEN is the blue accent (name is historical)
 TICK_BLUE = "#2e9e4f"
 
 
@@ -156,7 +156,7 @@ class DateField(ttk.Frame):
         for i, d in enumerate(calendar.Calendar(0).itermonthdates(self.year, self.month)):
             inside, sel = d.month == self.month, d.isoformat() == chosen
             cell = tk.Label(grid, text=str(d.day), width=4, font=font, cursor="hand2",
-                            background=GREEN if sel else PAPER, foreground="white" if sel else TEXT if inside else "#b9aeb1",
+                            background=GREEN if sel else PAPER, foreground="white" if sel else TEXT if inside else "#aab4bf",
                             highlightthickness=1, highlightbackground=GREEN_DARK if d == today and not sel else cell_bg(sel))
             cell.grid(row=1 + i // 7, column=i % 7, pady=1)
             cell.bind("<Button-1>", lambda _e, v=d.isoformat(): self._pick(v))
@@ -261,10 +261,10 @@ class App:
         # Outlined buttons with a thin line; the main action is solid green.
         s.configure("TButton", background=PAPER, foreground=TEXT, bordercolor=LINE, lightcolor=PAPER,
                     darkcolor=PAPER, borderwidth=1, padding=(14, 6), relief="solid")
-        s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#b9aeb1"), ("active", GREEN_DARK)],
+        s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#aab4bf"), ("active", GREEN_DARK)],
               bordercolor=[("disabled", LINE), ("active", GREEN)])
-        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#dcc0c6", "white", True),
-                                                ("Danger", PAPER, "#f3e6e0", PAPER, RED, False)):
+        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#b5cde8", "white", True),
+                                                ("Danger", PAPER, "#fbeceb", PAPER, RED, False)):
             s.configure(f"{name}.TButton", background=bg, foreground=fg, font=("Segoe UI", 10, "bold"),
                         bordercolor=bg if fill else "#e3c4c0", lightcolor=bg, darkcolor=bg)
             s.map(f"{name}.TButton", background=[("disabled", off), ("active", hover)],
@@ -281,15 +281,15 @@ class App:
         s.map("TCheckbutton", background=[("active", BG)], indicatorbackground=[("selected", GREEN), ("!selected", PAPER)])
         s.configure("Horizontal.TProgressbar", troughcolor=SOFT, background=GREEN, bordercolor=LINE,
                     lightcolor=GREEN, darkcolor=GREEN, thickness=8)
-        s.configure("Vertical.TScrollbar", troughcolor=BG, background="#d3d0bf", bordercolor=BG, arrowcolor=BG,
-                    lightcolor="#d3d0bf", darkcolor="#d3d0bf")
-        s.map("Vertical.TScrollbar", background=[("active", "#c2bfae")])
+        s.configure("Vertical.TScrollbar", troughcolor=BG, background="#c9d5e2", bordercolor=BG, arrowcolor=BG,
+                    lightcolor="#c9d5e2", darkcolor="#c9d5e2")
+        s.map("Vertical.TScrollbar", background=[("active", "#b5c4d5")])
 
     @staticmethod
     def _zigzag(c: tk.Canvas, width: int) -> None:
         c.delete("all")
         for x in range(0, width + 36, 36):
-            c.create_polygon(x, 0, x + 36, 0, x + 18, 18, fill="#cbd5de", outline="")
+            c.create_polygon(x, 0, x + 36, 0, x + 18, 18, fill="#bcd1e8", outline="")
 
     def _build(self) -> None:
         self._style()
@@ -297,7 +297,7 @@ class App:
         head = ttk.Frame(self.root, style="Head.TFrame", padding=(16, 12))
         head.pack(fill="x")
         tk.Frame(self.root, height=1, background=LINE).pack(fill="x")  # thin line under the header
-        banner = tk.Canvas(self.root, height=18, highlightthickness=0, background="#b9c6d1")  # zigzag strip, like the card banners
+        banner = tk.Canvas(self.root, height=18, highlightthickness=0, background="#a9c3e0")  # zigzag strip, like the card banners
         banner.pack(fill="x")
         banner.bind("<Configure>", lambda e: self._zigzag(banner, e.width))
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
