@@ -237,8 +237,8 @@ small,.muted{{color:#6b7568}} .ok{{color:#4d8a00}} .bad{{color:#c0392b}}
 .doc b{{font-size:1.1rem;color:#4d8a00;margin-bottom:4px}}
 .play{{position:absolute;left:6px;bottom:4px;font-size:.8rem;color:#fff;text-shadow:0 0 3px #000}}
 #bar{{margin:8px 0}} #bar button{{margin-right:6px}}
-.grid a.on{{border-color:#0a84ff;box-shadow:inset 0 0 0 2px #0a84ff}}
-.grid a.on::after{{content:"";position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;box-sizing:border-box;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);background:#0a84ff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.5 4.5 8.5-9.5'/%3E%3C/svg%3E") center/70% no-repeat}}
+.grid a.on{{border-color:#2e9e4f;box-shadow:inset 0 0 0 2px #2e9e4f}}
+.grid a.on::after{{content:"";position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;box-sizing:border-box;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);background:#2e9e4f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.5 4.5 8.5-9.5'/%3E%3C/svg%3E") center/70% no-repeat}}
 </style></head><body>
 <h2>Send to this PC</h2><div class="up">
 Photos: <input id="f" type="file" multiple accept="image/*,video/*"><br><br>

@@ -54,7 +54,7 @@ APP_NAME = "Dropboxer"
 PAPER = "#f8f6ee"  # inputs, buttons and pop-ups: a touch lighter than the window
 BG, HEAD, PANEL, SOFT, LINE = "#f1eee4", "#e8e5d8", PAPER, "#e6e4d7", "#d3d0bf"
 TEXT, MUTED, GREEN, GREEN_DARK, RED = "#2b3226", "#6c7262", "#6a9444", "#527a32", "#b5574d"
-TICK_BLUE = "#0a84ff"
+TICK_BLUE = "#2e9e4f"
 
 
 def _load_settings() -> dict:
@@ -192,6 +192,7 @@ class App:
         self.band_from: tuple[float, float] | None = None  # where the left button went down, for drag-to-select
         self.band: tuple[float, float, float, float] | None = None  # the box being dragged, in canvas coordinates
         self.band_base: set[str] = set()
+        self.band_erase = False  # the drag started on a selected tile: the box unselects
         self.redraw_pending = False
         self.tip: tk.Toplevel | None = None
         self.tip_after: str | None = None
@@ -547,9 +548,12 @@ class App:
         self.band_from = (self.canvas.canvasx(e.x), self.canvas.canvasy(e.y))
         self.band = None
         self.band_base = set(self.selected)
+        h = self._hit(e)  # a drag that starts on a selected tile unselects what it touches instead
+        self.band_erase = bool(h and h[4] == "cell" and h[5].path in self.selected)
 
     def _drag(self, e: tk.Event) -> None:
-        """Hold the left button and drag: every tile the box touches is selected (on top of what was already)."""
+        """Hold the left button and drag: every tile the box touches is selected (on top of what was already);
+        start on a selected tile and it unselects them instead."""
         if not self.band_from:
             return
         c = self.canvas
@@ -562,7 +566,7 @@ class App:
         self.band = (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
         l, t, rt, b = self.band
         hit = {h[5].path for h in self.hits if h[4] == "cell" and h[0] < rt and h[2] > l and h[1] < b and h[3] > t}
-        self.selected = self.band_base | hit
+        self.selected = self.band_base - hit if self.band_erase else self.band_base | hit
         self._update_count()
         self._schedule_redraw()
 
