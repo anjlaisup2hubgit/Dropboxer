@@ -53,7 +53,7 @@ APP_NAME = "Dropboxer"
 # Warm map-paper background, thin lines, one grass-green accent.
 PAPER = "#f8f6ee"  # inputs, buttons and pop-ups: a touch lighter than the window
 BG, HEAD, PANEL, SOFT, LINE = "#f1eee4", "#e8e5d8", PAPER, "#e6e4d7", "#d3d0bf"
-TEXT, MUTED, GREEN, GREEN_DARK, RED = "#2b3226", "#6c7262", "#6a9444", "#527a32", "#b5574d"
+TEXT, MUTED, GREEN, GREEN_DARK, RED = "#2b2326", "#7a6f72", "#8f2d3f", "#741f30", "#b5352b"  # GREEN is the maroon accent
 TICK_BLUE = "#2e9e4f"
 
 
@@ -156,7 +156,7 @@ class DateField(ttk.Frame):
         for i, d in enumerate(calendar.Calendar(0).itermonthdates(self.year, self.month)):
             inside, sel = d.month == self.month, d.isoformat() == chosen
             cell = tk.Label(grid, text=str(d.day), width=4, font=font, cursor="hand2",
-                            background=GREEN if sel else PAPER, foreground="white" if sel else TEXT if inside else "#aeb2a2",
+                            background=GREEN if sel else PAPER, foreground="white" if sel else TEXT if inside else "#b9aeb1",
                             highlightthickness=1, highlightbackground=GREEN_DARK if d == today and not sel else cell_bg(sel))
             cell.grid(row=1 + i // 7, column=i % 7, pady=1)
             cell.bind("<Button-1>", lambda _e, v=d.isoformat(): self._pick(v))
@@ -261,9 +261,9 @@ class App:
         # Outlined buttons with a thin line; the main action is solid green.
         s.configure("TButton", background=PAPER, foreground=TEXT, bordercolor=LINE, lightcolor=PAPER,
                     darkcolor=PAPER, borderwidth=1, padding=(14, 6), relief="solid")
-        s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#aeb2a2"), ("active", GREEN_DARK)],
+        s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#b9aeb1"), ("active", GREEN_DARK)],
               bordercolor=[("disabled", LINE), ("active", GREEN)])
-        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#c8d5b6", "white", True),
+        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#dcc0c6", "white", True),
                                                 ("Danger", PAPER, "#f3e6e0", PAPER, RED, False)):
             s.configure(f"{name}.TButton", background=bg, foreground=fg, font=("Segoe UI", 10, "bold"),
                         bordercolor=bg if fill else "#e3c4c0", lightcolor=bg, darkcolor=bg)
@@ -285,12 +285,21 @@ class App:
                     lightcolor="#d3d0bf", darkcolor="#d3d0bf")
         s.map("Vertical.TScrollbar", background=[("active", "#c2bfae")])
 
+    @staticmethod
+    def _zigzag(c: tk.Canvas, width: int) -> None:
+        c.delete("all")
+        for x in range(0, width + 36, 36):
+            c.create_polygon(x, 0, x + 36, 0, x + 18, 18, fill="#cbd5de", outline="")
+
     def _build(self) -> None:
         self._style()
         self.mode = tk.StringVar(value="send")  # "receive" = iPhone to PC, "send" = PC to iPhone
         head = ttk.Frame(self.root, style="Head.TFrame", padding=(16, 12))
         head.pack(fill="x")
         tk.Frame(self.root, height=1, background=LINE).pack(fill="x")  # thin line under the header
+        banner = tk.Canvas(self.root, height=18, highlightthickness=0, background="#b9c6d1")  # zigzag strip, like the card banners
+        banner.pack(fill="x")
+        banner.bind("<Configure>", lambda e: self._zigzag(banner, e.width))
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
         lang = ttk.Combobox(head, values=list(LANGUAGES.values()), state="readonly", width=11)
         lang.set(LANGUAGES[language()])
