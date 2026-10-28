@@ -215,26 +215,30 @@ def manifest(token: str) -> bytes:
 
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#ffffff">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#f1eee4">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Dropboxer">
 <title>Dropboxer</title><style>
-body{{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#fff;color:#1f2a1f}}
-h2{{font-size:1.05rem;font-weight:600;margin:20px 0 8px}}
-.up{{background:#fff;border:1px solid #dfe3d9;border-radius:12px;padding:14px;margin-bottom:12px}}
-button,input[type=file]{{font-size:1rem}}
-button{{padding:8px 14px;border-radius:8px;border:1px solid #dfe3d9;background:#fff;color:#1f2a1f;cursor:pointer}}
-button:hover{{border-color:#5ea500;color:#4d8a00}}
-button.pri{{background:#5ea500;border-color:#5ea500;color:#fff}} button.pri:hover{{background:#4d8a00;color:#fff}}
-button.danger{{color:#c0392b;border-color:#e8b9b3}} button.danger:hover{{border-color:#c0392b;color:#c0392b}}
+body{{font-family:Nunito,ui-rounded,system-ui,sans-serif;margin:0 auto;padding:16px;max-width:760px;background:#f1eee4;color:#2b2326}}
+h2{{font-size:1.5rem;font-weight:800;margin:22px 0 10px}}
+.up{{background:#fff;border:1px solid #e4dcdc;border-radius:10px;padding:14px;margin-bottom:14px;overflow:hidden}}
+.up::before{{content:"";display:block;height:72px;margin:-14px -14px 12px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Crect width='40' height='20' fill='%23b9c6d1'/%3E%3Cpath d='M0 0h40L20 20z' fill='%23cbd5de'/%3E%3C/svg%3E")}}
+.up:nth-of-type(2n)::before{{background:repeating-linear-gradient(135deg,#c48a97 0 10px,#cf9ca8 10px 20px)}}
+.up:nth-of-type(3n)::before{{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23d6d2c2'/%3E%3Cpath d='M0 0h20a20 20 0 0 1-20 20zM40 40H20a20 20 0 0 1 20-20z' fill='%23c5c1ae'/%3E%3C/svg%3E")}}
+.up:nth-of-type(4n)::before{{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Crect width='40' height='20' fill='%23f2bcc8'/%3E%3Cpath d='M0 0h40L20 20z' fill='%23f7d0d9'/%3E%3C/svg%3E")}}
+button,input[type=file]{{font-size:1rem;font-family:inherit}}
+button{{padding:8px 16px;border-radius:6px;border:1.5px solid #8f2d3f;background:#fff;color:#8f2d3f;cursor:pointer;font-weight:600}}
+button:hover{{background:#faeef0}}
+button.pri{{background:#8f2d3f;border-color:#8f2d3f;color:#fff}} button.pri:hover{{background:#741f30;color:#fff}}
+button.danger{{color:#b5352b;border-color:#b5352b}} button.danger:hover{{background:#fdeceb;color:#b5352b}}
 button:disabled{{opacity:.4}}
-small,.muted{{color:#6b7568}} .ok{{color:#4d8a00}} .bad{{color:#c0392b}}
-.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}}
-.grid a{{display:block;aspect-ratio:1;background:#f3f6ee;border:1px solid #dfe3d9;border-radius:8px;overflow:hidden;position:relative;color:#1f2a1f;text-decoration:none}}
+small,.muted{{color:#7a6f72}} .ok{{color:#2e7d46}} .bad{{color:#b5352b}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}}
+.grid a{{display:block;aspect-ratio:1;background:#fff;border:1px solid #e4dcdc;border-radius:10px;overflow:hidden;position:relative;color:#2b2326;text-decoration:none}}
 .grid img,.grid video{{width:100%;height:100%;object-fit:cover}}
-#log div{{font-size:.85rem;margin:4px 0;color:#6b7568}} #log div.ok{{color:#4d8a00}} #log div.bad{{color:#c0392b}}
+#log div{{font-size:.85rem;margin:4px 0;color:#7a6f72}} #log div.ok{{color:#2e7d46}} #log div.bad{{color:#b5352b}}
 .grid img,.grid video{{pointer-events:none}}
-.doc{{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;text-align:center;font-size:.7rem;word-break:break-all;overflow:hidden;color:#6b7568}}
-.doc b{{font-size:1.1rem;color:#4d8a00;margin-bottom:4px}}
+.doc{{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;text-align:center;font-size:.7rem;word-break:break-all;overflow:hidden;color:#7a6f72}}
+.doc b{{font-size:1.1rem;color:#2e7d46;margin-bottom:4px}}
 .play{{position:absolute;left:6px;bottom:4px;font-size:.8rem;color:#fff;text-shadow:0 0 3px #000}}
 #bar{{margin:8px 0}} #bar button{{margin-right:6px}}
 .grid a.on{{border-color:#2e9e4f;box-shadow:inset 0 0 0 2px #2e9e4f}}
@@ -463,7 +467,7 @@ class _Handler(BaseHTTPRequestHandler):
         """A page holding the photo as a plain image, so press and hold offers Save to Photos."""
         src = f"/{quote(self.server.token)}/img/{quote(rel)}"
         page = ('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-                '<body style="margin:0;background:#fff;color:#6b7568;font-family:system-ui,sans-serif;text-align:center">'
+                '<body style="margin:0;background:#fff;color:#7a6f72;font-family:system-ui,sans-serif;text-align:center">'
                 f'<p style="margin:10px">Press and hold the photo, then choose Save to Photos.</p><img src="{src}" style="max-width:100%">')
         self._send(HTTPStatus.OK, page.encode(), "text/html; charset=utf-8")
 
