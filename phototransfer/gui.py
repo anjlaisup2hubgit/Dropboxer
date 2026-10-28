@@ -28,7 +28,7 @@ WHEEL_UNITS = 3  # units per mouse wheel notch (about 120 px)
 TIP_DELAY_MS = 350
 PREVIEW = 900  # longest side of the picture opened by a double-click
 MAX_PREVIEW = 3000  # most files listed from one folder in PC to iPhone
-AUDIO = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus"}
+AUDIO = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".wma", ".webm", ".mka"}  # .webm: YouTube audio downloads
 KINDS = {
     "All": None,
     "Photos": {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff", ".webp"},
@@ -392,6 +392,7 @@ class App:
             if not self.all_files and not self.send_scanned:  # first visit: preview the Pictures folder
                 self.send_scanned = True
                 self._show_folder(Path.home() / "Pictures")
+                self._show_folder(Path.home() / "Music")
             self.status.config(text="Click the photos and videos you want to send (Shift-click picks a range), then click Send."
                                if self.all_files else "Looking for photos and videos on this PC…")
         else:
