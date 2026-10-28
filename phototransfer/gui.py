@@ -278,8 +278,6 @@ class App:
         head.pack(fill="x")
         tk.Frame(self.root, height=1, background=LINE).pack(fill="x")  # thin line under the header
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
-        ttk.Label(head, text="iPhone and PC photo transfer", style="Sub.TLabel").pack(side="left", padx=12, pady=(5, 0))
-        ttk.Button(head, text="Share over Wi-Fi", command=self.wifi_share).pack(side="right")
         ttk.Button(head, text="Settings", style="Link.TButton", command=self.toggle_settings).pack(side="right", padx=(0, 8))
 
         self.top = top = ttk.Frame(self.root, padding=(16, 12, 16, 6))
@@ -291,6 +289,8 @@ class App:
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
         self.connect_btn = ttk.Button(top, text="Connect iPhone", style="Primary.TButton", command=self.connect)
         self.connect_btn.pack(side="left", padx=(16, 0))
+        # iPhone to PC: Wi-Fi is the easy way, so it sits right next to the mode switch.
+        self.wifi_btn = ttk.Button(top, text="Send over Wi-Fi", style="Primary.TButton", command=self.wifi_share)
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
 
@@ -310,8 +310,7 @@ class App:
             DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
             ttk.Label(bar, text=text, style="Muted.TLabel").pack(side="right", padx=(10, 0))
         ttk.Label(self.root, style="Muted.TLabel", padding=(16, 2, 16, 6),
-                  text="Click a picture to select it  ·  Shift-click picks a range  ·  double-click to enlarge  ·  "
-                       "click a day heading to select the day  ·  Ctrl+A all, Esc none").pack(fill="x")
+                  text="Click to select  ·  Shift-click for a range  ·  double-click to enlarge").pack(fill="x")
 
         # Everything else lives in Settings, which starts hidden.
         self.settings = ttk.Frame(self.root, style="Card.TFrame", padding=14)
@@ -355,7 +354,7 @@ class App:
         self.remote_label = ttk.Label(row, text="folder", style="Panel.TLabel")
         self.remote_label.pack(side="left")
         ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
-        self.send_note = ttk.Label(row, text="Sent files will not show in the Photos app.", style="PanelMuted.TLabel")
+        self.send_note = ttk.Label(row, text="Won't show in Photos.", style="PanelMuted.TLabel")
         self.send_note.pack(side="left")
         row = ttk.Frame(panel, style="Panel.TFrame")
         row.pack(fill="x")
@@ -368,7 +367,7 @@ class App:
         self.bar = ttk.Progressbar(row, maximum=100)
         self.bar.pack(side="left", fill="x", expand=True, padx=8)
 
-        self.status = ttk.Label(self.root, text="Plug in your iPhone, unlock it, tap Trust, then click Connect iPhone.",
+        self.status = ttk.Label(self.root, text="Plug in and unlock your iPhone, then click Connect.",
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
         # Pin the action panel and status line to the bottom so a short window shrinks the picture grid, not them.
         self.status.pack(side="bottom", fill="x", before=mid)
@@ -387,6 +386,7 @@ class App:
         self.all_files, self.selected = self._stash["send" if sending else "receive"]
         if sending:
             self.dest_row.pack_forget()
+            self.wifi_btn.pack_forget()
             self.remote_row.pack(fill="x", pady=(0, 12), before=self.copy_btn.master)
             self.add_btn.pack(side="left", padx=(8, 0), after=self.copy_btn)
             self.folder_btn.pack(side="left", padx=(8, 0), after=self.add_btn)
@@ -394,14 +394,14 @@ class App:
                 self.send_scanned = True
                 self._show_folder(Path.home() / "Pictures")
                 self._show_folder(Path.home() / "Music")
-            self.status.config(text="Click the photos and videos you want to send (Shift-click picks a range), then click Send."
-                               if self.all_files else "Looking for photos and videos on this PC…")
+            self.status.config(text="Pick files, then click Send." if self.all_files else "Looking for files…")
         else:
             self.remote_row.pack_forget()
+            self.wifi_btn.pack(side="left", padx=(8, 0), after=self.connect_btn)
             self.dest_row.pack(fill="x", pady=(0, 12), before=self.copy_btn.master)
             self.add_btn.pack_forget()
             self.folder_btn.pack_forget()
-            self.status.config(text="Click photos to select them (Shift-click picks a range), then click Copy to PC.")
+            self.status.config(text="Pick photos, then click Copy to PC.")
         self._fill()
 
     def primary_action(self) -> None:
@@ -693,7 +693,7 @@ class App:
 
     def connect(self) -> None:
         self.failed = False
-        self.status.config(text="Connecting and listing files…")
+        self.status.config(text="Connecting…")
         self._submit(self._connect())
 
     async def _connect(self) -> None:
@@ -761,10 +761,10 @@ class App:
         win.configure(background=BG)
         qr = ttk.Label(win)
         qr.pack(padx=12, pady=(12, 4))
-        ttk.Label(win, text="On your phone (same Wi-Fi), scan this or open:").pack()
+        ttk.Label(win, text="Scan with your phone (same Wi-Fi)").pack()
         link = ttk.Entry(win, width=44)
         link.pack(padx=12, pady=4)
-        away_label = ttk.Label(win, text="Away from home (Tailscale must be on in the phone):")
+        away_label = ttk.Label(win, text="Away from home:")
         away = ttk.Entry(win, width=44)
         https = tk.BooleanVar(value=False)
         note = ttk.Label(win, justify="center", wraplength=340, padding=8)
@@ -777,9 +777,9 @@ class App:
             link.delete(0, "end")
             link.insert(0, server.url)
             link.config(state="readonly")
-            text = f"Shared folder: {folder}"
+            text = f"Saves to: {folder}"
             if server.tls:
-                text += f"\nFirst time: trust the certificate at {server.cert_url}"
+                text += f"\nFirst time, trust: {server.cert_url}"
             away.config(state="normal")
             away.delete(0, "end")
             if server.remote_url:
@@ -805,7 +805,7 @@ class App:
             count.config(text="0 files received")
             show()
 
-        ttk.Checkbutton(win, text="Use HTTPS (lets the page save many photos to Photos)", variable=https,
+        ttk.Checkbutton(win, text="HTTPS (save many photos at once)", variable=https,
                         command=toggle).pack()
         note.pack()
         count.pack()
@@ -829,8 +829,8 @@ class App:
         app = SEND_TO[self.send_to.get()]
         self.remote.set(DEFAULT_UPLOAD_ROOT if app is None else "")
         self.remote_label.config(text="folder" if app is None else "subfolder (optional)")
-        self.send_note.config(text="Sent files will not show in the Photos app." if app is None else
-                              f"Open {self.send_to.get().split(' (')[0]} on the phone to find them. Install it first (free).")
+        self.send_note.config(text="Won't show in Photos." if app is None else
+                              f"Find them in {self.send_to.get().split(' (')[0]}.")
 
     def choose_files(self) -> None:
         names = filedialog.askopenfilenames(title="Choose files to send to the phone", filetypes=[
@@ -847,7 +847,7 @@ class App:
     def _show_folder(self, folder: Path) -> None:
         """List the photos and videos inside a folder (nothing ticked yet) so they can be previewed and picked."""
         exts = KINDS["Photos"] | KINDS["Videos"] | AUDIO
-        self.status.config(text=f"Looking for photos, videos and music in {folder}…")
+        self.status.config(text=f"Looking in {folder}…")
 
         def scan() -> None:
             found = []
@@ -896,7 +896,7 @@ class App:
     def _start_send(self, paths: list[Path], root: Path) -> None:
         remote = "/" + self.remote.get().strip().strip("/")
         if not paths:
-            self.status.config(text="Nothing to send: no files found.")
+            self.status.config(text="Nothing to send.")
             return
         if remote == "/DCIM" or remote.startswith("/DCIM/"):
             messagebox.showerror("Not allowed", "Sending into /DCIM can confuse the Photos app. Pick another folder.")
@@ -937,7 +937,7 @@ class App:
             if self.mode.get() == "send":  # the PC to iPhone list on screen is not replaced
                 self._stash["receive"] = (ev[1], set())
                 self.busy = False
-                self.status.config(text="iPhone connected. Check the list, then click Send.")
+                self.status.config(text="iPhone connected.")
                 self._sync_buttons()
                 return
             self.all_files = ev[1]
@@ -948,15 +948,14 @@ class App:
             if ev[1]:
                 lo, hi = (datetime.fromtimestamp(t(f.mtime for f in ev[1])).strftime("%Y-%m-%d") for t in (min, max))
                 span = f" from {lo} to {hi}"
-            self.status.config(text=f"{len(ev[1])} photos and videos found{span}. Click photos to select them "
-                                    "(Shift-click picks a range), then click Copy to PC."
-                               if self.mode.get() == "receive" else "iPhone connected. Click Send files to iPhone.")
+            self.status.config(text=f"{len(ev[1])} found{span}. Pick photos, then click Copy to PC."
+                               if self.mode.get() == "receive" else "iPhone connected.")
             self._sync_buttons()
         elif kind == "folder":
             _, files, folder = ev
             self._add_to_send(files, tick=False)
             if not files:
-                self.status.config(text=f"No photos or videos found in {folder}. Click Show a folder… to look elsewhere.")
+                self.status.config(text=f"Nothing found in {folder}.")
         elif kind == "preview":
             _, png, win, label = ev
             if win.winfo_exists():
@@ -1004,7 +1003,7 @@ class App:
             e = ev[1]
             self.busy = False
             self.failed = True
-            self.status.config(text=f"{type(e).__name__}: {e}. Plug the cable in, unlock the phone, then click Reconnect iPhone.")
+            self.status.config(text=f"{type(e).__name__}: {e}. Check the cable, unlock the phone, click Reconnect.")
             messagebox.showerror(
                 "Could not complete",
                 f"{type(e).__name__}: {e}\n\nCheck: cable plugged in, phone unlocked, 'Trust This Computer' accepted.",
