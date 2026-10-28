@@ -10,9 +10,17 @@ READ_CHUNK = 4 * 1024 * 1024  # AFC max read size
 
 
 class IPhoneSource(Source):
-    def __init__(self, lockdown, afc):
+    def __init__(self, lockdown, afc, owns_lockdown: bool = True):
         self._lockdown = lockdown
         self._afc = afc
+        self._owns_lockdown = owns_lockdown
+
+    async def open_app(self, bundle_id: str) -> "IPhoneSource":
+        """The Documents folder of an app that allows file sharing (VLC, Documents, ...), over the same connection."""
+        from pymobiledevice3.services.house_arrest import HouseArrestService
+
+        afc = await HouseArrestService.create(self._lockdown, bundle_id, documents_only=True)
+        return IPhoneSource(self._lockdown, afc, owns_lockdown=False)
 
     @classmethod
     async def connect(cls, udid: str | None = None) -> "IPhoneSource":
@@ -95,7 +103,9 @@ class IPhoneSource(Source):
 
     async def close(self) -> None:
         await self._afc.aclose()
-        close = getattr(self._lockdown, "close", None)
+        if not self._owns_lockdown:
+            return
+        close =getattr(self._lockdown, "close", None)
         if close:
             res = close()
             if hasattr(res, "__await__"):

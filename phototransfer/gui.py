@@ -28,10 +28,19 @@ WHEEL_UNITS = 3  # units per mouse wheel notch (about 120 px)
 TIP_DELAY_MS = 350
 PREVIEW = 900  # longest side of the picture opened by a double-click
 MAX_PREVIEW = 3000  # most files listed from one folder in PC to iPhone
+AUDIO = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus"}
 KINDS = {
     "All": None,
     "Photos": {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff", ".webp"},
     "Videos": {".mov", ".mp4", ".m4v"},
+    "Music": AUDIO,
+}
+# PC to iPhone destinations. The Music app cannot be filled over USB, so music goes into the Documents
+# folder of a player that allows file sharing; the first choice is a plain folder (what photos use).
+SEND_TO = {
+    "Folder on iPhone": None,
+    "VLC (music player)": "org.videolan.vlc-ios",
+    "Documents by Readdle": "com.readdle.ReaddleDocsIPad",
 }
 APP_NAME = "Dropboxer"
 # Same palette as the Wi-Fi web page: white, thin pale lines, one green accent.
@@ -328,10 +337,17 @@ class App:
         ttk.Entry(row, textvariable=self.dest).pack(side="left", fill="x", expand=True, padx=8)
         ttk.Button(row, text="Change folder…", command=self.browse).pack(side="left")
         self.remote_row = row = ttk.Frame(panel, style="Panel.TFrame")  # PC to iPhone: where on the phone
-        ttk.Label(row, text="Send to iPhone folder", style="Panel.TLabel").pack(side="left")
+        ttk.Label(row, text="Send to", style="Panel.TLabel").pack(side="left")
+        self.send_to = tk.StringVar(value="Folder on iPhone")
+        pick = ttk.Combobox(row, textvariable=self.send_to, values=list(SEND_TO), state="readonly", width=20)
+        pick.pack(side="left", padx=8)
+        pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
         self.remote = tk.StringVar(value=DEFAULT_UPLOAD_ROOT)
+        self.remote_label = ttk.Label(row, text="folder", style="Panel.TLabel")
+        self.remote_label.pack(side="left")
         ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
-        ttk.Label(row, text="Sent files will not show in the Photos app.", style="PanelMuted.TLabel").pack(side="left")
+        self.send_note = ttk.Label(row, text="Sent files will not show in the Photos app.", style="PanelMuted.TLabel")
+        self.send_note.pack(side="left")
         row = ttk.Frame(panel, style="Panel.TFrame")
         row.pack(fill="x")
         self.copy_btn = ttk.Button(row, text="Copy to PC", style="Primary.TButton", command=self.primary_action, state="disabled")
@@ -788,8 +804,17 @@ class App:
         show()
         tick()
 
+    def _send_to_changed(self) -> None:
+        app = SEND_TO[self.send_to.get()]
+        self.remote.set(DEFAULT_UPLOAD_ROOT if app is None else "")
+        self.remote_label.config(text="folder" if app is None else "subfolder (optional)")
+        self.send_note.config(text="Sent files will not show in the Photos app." if app is None else
+                              f"Open {self.send_to.get().split(' (')[0]} on the phone to find them. Install it first (free).")
+
     def choose_files(self) -> None:
-        names = filedialog.askopenfilenames(title="Choose files to send to the phone")
+        names = filedialog.askopenfilenames(title="Choose files to send to the phone", filetypes=[
+            ("All files", "*.*"), ("Music", " ".join(f"*{e}" for e in sorted(AUDIO))),
+            ("Photos and videos", " ".join(f"*{e}" for e in sorted(KINDS["Photos"] | KINDS["Videos"])))])
         if names:
             self._add_to_send([Path(n) for n in names])
 
@@ -800,8 +825,8 @@ class App:
 
     def _show_folder(self, folder: Path) -> None:
         """List the photos and videos inside a folder (nothing ticked yet) so they can be previewed and picked."""
-        exts = KINDS["Photos"] | KINDS["Videos"]
-        self.status.config(text=f"Looking for photos and videos in {folder}…")
+        exts = KINDS["Photos"] | KINDS["Videos"] | AUDIO
+        self.status.config(text=f"Looking for photos, videos and music in {folder}…")
 
         def scan() -> None:
             found = []
@@ -867,7 +892,13 @@ class App:
         def progress(path: str, done: int, total: int) -> None:
             self.events.put(("progress", path, done, total))
 
-        summary = await upload_files(self.source, paths, root, remote, progress, self.cancel.is_set)
+        app = SEND_TO[self.send_to.get()]
+        dest = await self.source.open_app(app) if app else self.source
+        try:
+            summary = await upload_files(dest, paths, root, "" if remote == "/" and app else remote, progress, self.cancel.is_set)
+        finally:
+            if app:
+                await dest.close()
         self.events.put(("finished", summary, "Sent", "already there"))
 
     # ---- UI thread: drain events --------------------------------------------------------------
