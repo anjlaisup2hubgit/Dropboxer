@@ -286,12 +286,35 @@ class App:
         for text, value in (("PC to iPhone", "send"), ("iPhone to PC", "receive")):
             ttk.Radiobutton(seg, text=text, value=value, variable=self.mode, style="Seg.Toolbutton",
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
-        self.connect_btn = ttk.Button(top, text="Connect", style="Primary.TButton", command=self.connect)
-        self.connect_btn.pack(side="left", padx=(16, 0))
-        # iPhone to PC: Wi-Fi is the easy way, so it sits right next to the mode switch.
-        self.wifi_btn = ttk.Button(top, text="Wi-Fi", style="Primary.TButton", command=self.wifi_share)
+        self.copy_btn = ttk.Button(top, text="Copy", style="Primary.TButton", command=self.primary_action, state="disabled")
+        self.copy_btn.pack(side="left", padx=(16, 0))
+        self.folder_btn = ttk.Button(top, text="Folder…", command=self.send_folder)  # PC to iPhone only
+        self.cancel_btn = ttk.Button(top, text="Stop", style="Danger.TButton", command=self.cancel.set)
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
+        self.bar = ttk.Progressbar(top, maximum=100)
+        self.bar.pack(side="left", fill="x", expand=True, padx=12)
+
+        # Where the files go.
+        self.rows = ttk.Frame(self.root, padding=(16, 0, 16, 8))
+        self.rows.pack(fill="x")
+        self.dest_row = row = ttk.Frame(self.rows)
+        ttk.Label(row, text="Save in").pack(side="left")
+        self.dest = tk.StringVar(value=_load_settings().get("dest") or str(Path.home() / "Pictures" / "iPhone"))
+        ttk.Entry(row, textvariable=self.dest).pack(side="left", fill="x", expand=True, padx=8)
+        ttk.Button(row, text="Change", command=self.browse).pack(side="left")
+        self.remote_row = row = ttk.Frame(self.rows)  # PC to iPhone: where on the phone
+        ttk.Label(row, text="Send to").pack(side="left")
+        self.send_to = tk.StringVar(value="Folder on iPhone")
+        pick = ttk.Combobox(row, textvariable=self.send_to, values=list(SEND_TO), state="readonly", width=20)
+        pick.pack(side="left", padx=8)
+        pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
+        self.remote = tk.StringVar(value=DEFAULT_UPLOAD_ROOT)
+        self.remote_label = ttk.Label(row, text="folder")
+        self.remote_label.pack(side="left")
+        ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
+        self.send_note = ttk.Label(row, text="Won't show in Photos.", style="Muted.TLabel")
+        self.send_note.pack(side="left")
 
         # Filters and select-all sit in view, because they are used all the time.
         bar = ttk.Frame(self.root, padding=(16, 0, 16, 2))
@@ -301,13 +324,16 @@ class App:
             ttk.Radiobutton(bar, text=name, value=name, variable=self.kind, style="Seg.Toolbutton",
                             command=self._fill).pack(side="left", padx=(0, 2))
         self.all_ticked = tk.BooleanVar(value=False)
-        ttk.Checkbutton(bar, text="All", variable=self.all_ticked, command=self._toggle_all).pack(side="left", padx=(16, 0))
+        ttk.Checkbutton(bar, text="Select all", variable=self.all_ticked, command=self._toggle_all).pack(side="left", padx=(16, 0))
         self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
+        self.connect_btn = ttk.Button(bar, text="Reload", command=self.connect)  # iPhone to PC, once files are listed
+        self.wifi_btn = ttk.Button(bar, text="Wi-Fi", command=self.wifi_share)
         ttk.Button(bar, text="Reset", command=self.clear_dates).pack(side="right")
         for var, text, hint in ((self.date_to, "to", "Any date"), (self.date_from, "From", "Any date")):
             DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
             ttk.Label(bar, text=text, style="Muted.TLabel").pack(side="right", padx=(10, 0))
-        tk.Frame(self.root, height=6).pack()
+        ttk.Label(self.root, style="Muted.TLabel", padding=(16, 2, 16, 6),
+                  text="Shift-click selects a range  ·  click a day to select all of it").pack(fill="x")
 
         self.by_date = tk.BooleanVar(value=True)  # copies are always sorted into date folders
         self.jobs = tk.IntVar(value=1)
@@ -325,43 +351,13 @@ class App:
         self.canvas.bind("<Double-Button-1>", self._open_preview)  # the two clicks cancel out, the tick is unchanged
         self.canvas.bind("<Motion>", self._motion)
         self.canvas.bind("<Leave>", lambda _e: self._hide_tip(reset=True))
-
-        panel = ttk.Frame(self.root, style="Card.TFrame", padding=14)
-        panel.pack(fill="x", padx=16, pady=(10, 4))
-        self.dest_row = row = ttk.Frame(panel, style="Panel.TFrame")
-        row.pack(fill="x", pady=(0, 12))
-        ttk.Label(row, text="Save photos in", style="Panel.TLabel").pack(side="left")
-        self.dest = tk.StringVar(value=_load_settings().get("dest") or str(Path.home() / "Pictures" / "iPhone"))
-        ttk.Entry(row, textvariable=self.dest).pack(side="left", fill="x", expand=True, padx=8)
-        ttk.Button(row, text="Change", command=self.browse).pack(side="left")
-        self.remote_row = row = ttk.Frame(panel, style="Panel.TFrame")  # PC to iPhone: where on the phone
-        ttk.Label(row, text="Send to", style="Panel.TLabel").pack(side="left")
-        self.send_to = tk.StringVar(value="Folder on iPhone")
-        pick = ttk.Combobox(row, textvariable=self.send_to, values=list(SEND_TO), state="readonly", width=20)
-        pick.pack(side="left", padx=8)
-        pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
-        self.remote = tk.StringVar(value=DEFAULT_UPLOAD_ROOT)
-        self.remote_label = ttk.Label(row, text="folder", style="Panel.TLabel")
-        self.remote_label.pack(side="left")
-        ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
-        self.send_note = ttk.Label(row, text="Won't show in Photos.", style="PanelMuted.TLabel")
-        self.send_note.pack(side="left")
-        row = ttk.Frame(panel, style="Panel.TFrame")
-        row.pack(fill="x")
-        self.copy_btn = ttk.Button(row, text="Copy", style="Primary.TButton", command=self.primary_action, state="disabled")
-        self.copy_btn.pack(side="left")
-        self.add_btn = ttk.Button(row, text="Files…", command=self.choose_files)  # shown in PC to iPhone mode only
-        self.folder_btn = ttk.Button(row, text="Folder…", command=self.send_folder)
-        self.cancel_btn = ttk.Button(row, text="Stop", style="Danger.TButton", command=self.cancel.set, state="disabled")
-        self.cancel_btn.pack(side="left", padx=8)
-        self.bar = ttk.Progressbar(row, maximum=100)
-        self.bar.pack(side="left", fill="x", expand=True, padx=8)
+        self.empty = tk.Frame(self.canvas, background=BG)  # iPhone to PC with nothing listed yet: how to get photos
+        for text, command in (("USB-C cable", self.connect), ("Wi-Fi share", self.wifi_share)):
+            ttk.Button(self.empty, text=text, style="Primary.TButton", command=command, width=16).pack(side="left", padx=8, ipady=8)
 
         self.status = ttk.Label(self.root, text="Unlock your iPhone and tap Trust.",
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
-        # Pin the action panel and status line to the bottom so a short window shrinks the picture grid, not them.
-        self.status.pack(side="bottom", fill="x", before=mid)
-        panel.pack(side="bottom", fill="x", padx=16, pady=(10, 4), before=mid)
+        self.status.pack(side="bottom", fill="x", before=mid)  # a short window shrinks the grid, not the status
 
     def _mode_changed(self) -> None:
         """Switch between copying from the iPhone and sending to it."""
@@ -370,10 +366,8 @@ class App:
         self.all_files, self.selected = self._stash["send" if sending else "receive"]
         if sending:
             self.dest_row.pack_forget()
-            self.wifi_btn.pack_forget()
-            self.remote_row.pack(fill="x", pady=(0, 12), before=self.copy_btn.master)
-            self.add_btn.pack(side="left", padx=(8, 0), after=self.copy_btn)
-            self.folder_btn.pack(side="left", padx=(8, 0), after=self.add_btn)
+            self.remote_row.pack(fill="x")
+            self.folder_btn.pack(side="left", padx=(8, 0), after=self.copy_btn)
             if not self.all_files and not self.send_scanned:  # first visit: preview the Pictures folder
                 self.send_scanned = True
                 self._show_folder(Path.home() / "Pictures")
@@ -381,9 +375,7 @@ class App:
             self.status.config(text="" if self.all_files else "Looking for files…")
         else:
             self.remote_row.pack_forget()
-            self.wifi_btn.pack(side="left", padx=(8, 0), after=self.connect_btn)
-            self.dest_row.pack(fill="x", pady=(0, 12), before=self.copy_btn.master)
-            self.add_btn.pack_forget()
+            self.dest_row.pack(fill="x")
             self.folder_btn.pack_forget()
             self.status.config(text="")
         self._fill()
@@ -457,12 +449,12 @@ class App:
         c.delete("all")
         self.hits, self.visible = [], []
         if not self.layout:
-            msg = ("Nothing here yet."
-                   if self.mode.get() == "send" and not self.all_files else
-                   "No files match these filters." if self.all_files else
-                   "Connect your iPhone.")
-            c.create_text(c.winfo_width() // 2, c.winfo_height() // 2, text=msg, fill=MUTED, justify="center",
-                          font=("Segoe UI", 13))
+            mid_x, mid_y = c.winfo_width() // 2, c.winfo_height() // 2
+            if self.mode.get() == "receive" and not self.all_files:
+                c.create_window(mid_x, mid_y, window=self.empty)
+            else:
+                c.create_text(mid_x, mid_y, text="No files match these filters." if self.all_files else "Nothing here yet.",
+                              fill=MUTED, font=("Segoe UI", 13))
             return
         top = c.canvasy(0)
         bottom = top + c.winfo_height()
@@ -473,10 +465,8 @@ class App:
                     continue
                 day = datetime.strptime(a, "%Y-%m-%d").strftime("%a %Y-%m-%d")
                 mark = "✓ " if all(f.path in self.selected for f in b) else ""
-                title = c.create_text(PAD + 2, y + HEAD_H // 2, anchor="w", font=("Segoe UI", 11, "bold"),
+                c.create_text(PAD + 2, y + HEAD_H // 2, anchor="w", font=("Segoe UI", 11, "bold"),
                                       fill=TEXT, text=f"{mark}{day}")
-                c.create_text(c.bbox(title)[2] + 12, y + HEAD_H // 2, anchor="w", font=("Segoe UI", 10), fill=MUTED,
-                              text=f"{len(b)}  ·  {_human(sum(f.size for f in b))}")
                 self.hits.append((0, y, width, y + HEAD_H, "head", b))
                 continue
             if y + CELL < top or y > bottom:
@@ -651,11 +641,13 @@ class App:
         if self.mode.get() == "send":
             self.copy_btn.config(text=f"Send {n}" if n else "Add files…",
                                  state=("normal" if ready else "disabled") if n else ("disabled" if self.busy else "normal"))
-            self.add_btn.config(state="disabled" if self.busy else "normal")
         else:
             self.copy_btn.config(text=f"Copy {n}" if n else "Copy", state="normal" if ready and n else "disabled")
-        self.connect_btn.config(text="Reconnect" if self.failed else "Reload" if self.source else "Connect")
-        self.cancel_btn.config(state="normal" if self.busy else "disabled")
+        self.connect_btn.config(text="Reconnect" if self.failed else "Reload")
+        show = self.mode.get() == "receive" and bool(self.all_files)  # otherwise the middle of the list has them
+        for b in (self.connect_btn, self.wifi_btn):
+            b.pack(side="right", padx=(0, 6)) if show else b.pack_forget()
+        self.cancel_btn.pack(side="left", padx=(8, 0), after=self.copy_btn) if self.busy else self.cancel_btn.pack_forget()
         self.connect_btn.config(state="disabled" if self.busy else "normal")
 
     def browse(self) -> None:
