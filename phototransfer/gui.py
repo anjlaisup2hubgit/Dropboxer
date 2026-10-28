@@ -216,6 +216,7 @@ class App:
         h = min(round(860 * k), bottom - top - 50)  # 50: the title bar and window borders
         root.geometry(f"{w}x{h}+{left + (right - left - w) // 2}+{top + (bottom - top - h - 40) // 2}")
         self._build()
+        self._mode_changed()  # PC to iPhone is the starting mode
         root.protocol("WM_DELETE_WINDOW", self._quit)
         root.bind("<Control-a>", lambda e: self._key(e, self.select_all))
         root.bind("<Escape>", lambda e: self._key(e, self.clear_selection))
@@ -272,7 +273,7 @@ class App:
 
     def _build(self) -> None:
         self._style()
-        self.mode = tk.StringVar(value="receive")  # "receive" = iPhone to PC, "send" = PC to iPhone
+        self.mode = tk.StringVar(value="send")  # "receive" = iPhone to PC, "send" = PC to iPhone
         head = ttk.Frame(self.root, style="Head.TFrame", padding=(16, 12))
         head.pack(fill="x")
         tk.Frame(self.root, height=1, background=LINE).pack(fill="x")  # thin line under the header
@@ -285,7 +286,7 @@ class App:
         top.pack(fill="x")
         seg = ttk.Frame(top)
         seg.pack(side="left")
-        for text, value in (("iPhone to PC", "receive"), ("PC to iPhone", "send")):
+        for text, value in (("PC to iPhone", "send"), ("iPhone to PC", "receive")):
             ttk.Radiobutton(seg, text=text, value=value, variable=self.mode, style="Seg.Toolbutton",
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
         self.connect_btn = ttk.Button(top, text="Connect iPhone", style="Primary.TButton", command=self.connect)

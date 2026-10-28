@@ -186,7 +186,8 @@ def local_thumb(path: str | Path, size: int = THUMB, crop: bool = False) -> byte
         if is_video(p.name):
             return make_video_thumb(p, size, crop)
         if is_audio(p.name):
-            return make_wave_thumb(p, size, crop) or make_audio_thumb(p, size, crop)
+            # a video frame or cover art if the file has one (YouTube .webm, mp3 with art), else the waveform
+            return make_video_thumb(p, size, crop) or make_wave_thumb(p, size, crop) or make_audio_thumb(p, size, crop)
         if is_image(p.name) and p.stat().st_size <= MAX_BYTES:
             return make_thumb(p.read_bytes(), size, crop)
     except OSError:
