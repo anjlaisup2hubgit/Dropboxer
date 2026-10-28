@@ -1,4 +1,4 @@
-# phototransfer (milestone 1)
+# Dropboxer (phototransfer, milestone 1)
 New to the app? Read [HOWTO.md](HOWTO.md) for the step-by-step guide.
 
 Copy photos and videos from an iPhone to Windows over USB. Resumable, SHA-256 verified, keeps original timestamps (modified and, on Windows, creation).
@@ -59,7 +59,7 @@ Previews load only for the photos on screen and are cached in `~/.phototransfer/
 ## Tray app (no window, no terminal)
 `python -m phototransfer tray [folder]` (also what `PhoneTransfer.exe` does when started with no arguments) keeps the Wi-Fi share running from a tray icon: left-click shows the QR code, right-click has Copy link, the Tailscale link, Open photos folder, Open full window (USB copy), **Start with Windows**, and Quit. It shares the GUI's "Copy to" folder. A balloon says when files arrive.
 Build the single file: `pip install -e .[dev]`, then
-`pyinstaller --noconfirm --onefile --noconsole --name PhoneTransfer --collect-all pymobiledevice3 --collect-all pillow_heif --hidden-import pystray._win32 run_tray.py` → `dist\PhoneTransfer.exe` (~90 MB, first start takes ~15 s while it unpacks). Add one firewall rule for that .exe and it keeps working wherever you move it.
+`pyinstaller --noconfirm --onefile --noconsole --name PhoneTransfer --collect-all pymobiledevice3 --collect-all pillow_heif --collect-all av --hidden-import pystray._win32 run_tray.py` → `dist\PhoneTransfer.exe` (~90 MB, first start takes ~15 s while it unpacks). Add one firewall rule for that .exe and it keeps working wherever you move it.
 
 ## Website version (`web/`)
 A static page plus one tiny function, for Vercel (project root directory = `web`). The PC opens the site in Chrome or Edge, picks a folder, and shows a QR code; the phone scans it and sends photos **directly** to that folder over WebRTC. Nothing is stored on the server: `api/signal.js` only passes two short handshake messages, encrypted with a key that stays in the link's `#fragment`, and forgets them after 5 minutes.

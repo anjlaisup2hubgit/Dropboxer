@@ -1,23 +1,30 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Photo transfer (web)</title>
+<title>Dropboxer (web)</title>
 <style>
-body{font-family:system-ui,sans-serif;margin:0;padding:12px;background:#111;color:#eee}
-h2{font-size:1.05rem;margin:18px 0 8px} .up{background:#222;border-radius:10px;padding:12px;margin-bottom:12px}
-button,input[type=file]{font-size:1rem} button{padding:8px 14px;border-radius:8px;border:0;background:#2a7fff;color:#fff}
-button:disabled{opacity:.4} #qr{background:#fff;display:inline-block;padding:10px;border-radius:8px;margin:12px 0}
-#qr svg{display:block;width:240px;height:240px} small,.muted{color:#888} .ok{color:#6c6} .bad{color:#f66}
-#log div,#plog div{font-size:.85rem;margin:4px 0;color:#aaa} #log div.ok,#plog div.ok{color:#6c6} #log div.bad,#plog div.bad{color:#f66}
-code{word-break:break-all;font-size:.8rem;color:#aaa}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:4px}
-.grid a{display:block;aspect-ratio:1;background:#222;overflow:hidden;position:relative;color:#eee;text-decoration:none}
+body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#fff;color:#1f2a1f}
+h2{font-size:1.05rem;font-weight:600;margin:20px 0 8px}
+.up{background:#fff;border:1px solid #dfe3d9;border-radius:12px;padding:14px;margin-bottom:12px}
+button,input[type=file]{font-size:1rem}
+button{padding:8px 14px;border-radius:8px;border:1px solid #dfe3d9;background:#fff;color:#1f2a1f;cursor:pointer}
+button:hover{border-color:#5ea500;color:#4d8a00}
+button.pri{background:#5ea500;border-color:#5ea500;color:#fff} button.pri:hover{background:#4d8a00;color:#fff}
+button.danger{color:#c0392b;border-color:#e8b9b3} button.danger:hover{border-color:#c0392b;color:#c0392b}
+button:disabled{opacity:.4}
+small,.muted{color:#6b7568} .ok{color:#4d8a00} .bad{color:#c0392b}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}
+.grid a{display:block;aspect-ratio:1;background:#f3f6ee;border:1px solid #dfe3d9;border-radius:8px;overflow:hidden;position:relative;color:#1f2a1f;text-decoration:none}
 .grid img,.grid video{width:100%;height:100%;object-fit:cover}
+#qr{background:#fff;border:1px solid #dfe3d9;display:inline-block;padding:10px;border-radius:12px;margin:12px 0}
+#qr svg{display:block;width:240px;height:240px}
+#log div,#plog div{font-size:.85rem;margin:4px 0;color:#6b7568} #log div.ok,#plog div.ok{color:#4d8a00} #log div.bad,#plog div.bad{color:#c0392b}
+code{word-break:break-all;font-size:.8rem;color:#6b7568}
 </style></head><body>
 <div id="pc" hidden>
   <h2>Receive on this PC</h2>
   <div class="up">
     Use Chrome or Edge. Photos go straight from the phone to the folder you pick; nothing is stored on a server.<br><br>
-    <button id="pick">1. Choose the folder to save into</button> <span id="folder" class="muted"></span>
+    <button id="pick" class="pri">1. Choose the folder to save into</button> <span id="folder" class="muted"></span>
   </div>
   <div class="up" id="step2" hidden>
     Scan this with the phone camera (or open the link on the phone):<br>
@@ -34,7 +41,7 @@ code{word-break:break-all;font-size:.8rem;color:#aaa}
   <div class="up" id="send" hidden>
     Photos: <input id="files" type="file" multiple accept="image/*,video/*"><br><br>
     <small>Long videos (if the tick will not press): save them to Files first, then use Browse here.</small><br><br>
-    <button id="go">Upload</button> <button id="stop" hidden style="background:#c33">Stop</button>
+    <button id="go" class="pri">Upload</button> <button id="stop" hidden class="danger">Stop</button>
     <div id="total" class="muted"></div><div id="plog"></div>
   </div>
 </div>

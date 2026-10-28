@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit, parse_qs
 
-from .thumbs import CACHE_DIR, MAX_BYTES, make_thumb
+from .thumbs import CACHE_DIR, MAX_BYTES, local_thumb, make_thumb
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".gif", ".tiff", ".webp"}
 VIDEO_EXTS = {".mov", ".mp4", ".m4v"}
@@ -173,7 +173,7 @@ def app_icon(size: int) -> bytes:
     """The home-screen icon: a blue square with a white up/down arrow pair."""
     from PIL import Image, ImageDraw
 
-    im = Image.new("RGB", (size, size), "#2a7fff")
+    im = Image.new("RGB", (size, size), "#5ea500")
     d, u = ImageDraw.Draw(im), size / 100
     for x, up in ((35, True), (65, False)):  # one arrow up, one down
         tip, base = (18, 82) if up else (82, 18)
@@ -195,43 +195,50 @@ SERVICE_WORKER = "self.addEventListener('install',()=>self.skipWaiting());\n" \
 def manifest(token: str) -> bytes:
     base = f"/{quote(token)}/"
     return json.dumps({
-        "name": "Photo transfer", "short_name": "Photos", "start_url": base, "scope": base, "display": "standalone",
-        "background_color": "#111111", "theme_color": "#111111",
+        "name": "Dropboxer", "short_name": "Dropboxer", "start_url": base, "scope": base, "display": "standalone",
+        "background_color": "#ffffff", "theme_color": "#ffffff",
         "icons": [{"src": f"{base}icon/192.png", "sizes": "192x192", "type": "image/png"},
                   {"src": f"{base}icon/512.png", "sizes": "512x512", "type": "image/png"}],
     }).encode()
 
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#111111">
-<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Photos">
-<title>Photo transfer</title><style>
-body{{font-family:system-ui,sans-serif;margin:0;padding:12px;background:#111;color:#eee}}
-h2{{font-size:1.05rem;margin:18px 0 8px}} .up{{background:#222;border-radius:10px;padding:12px}}
-button,input[type=file]{{font-size:1rem}} button{{padding:8px 14px;border-radius:8px;border:0;background:#2a7fff;color:#fff}}
-#log div{{font-size:.85rem;margin:4px 0;color:#aaa}} .ok{{color:#6c6!important}} .bad{{color:#f66!important}}
-.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:4px}}
-.grid a{{display:block;aspect-ratio:1;background:#222;overflow:hidden;position:relative;color:#eee;text-decoration:none}}
-.grid img,.grid video{{width:100%;height:100%;object-fit:cover;pointer-events:none}}
-.play{{position:absolute;right:6px;bottom:4px;font-size:.8rem;text-shadow:0 0 3px #000}}
-small{{color:#888}} #bar{{margin:8px 0}} #bar button{{margin-right:6px}} button:disabled{{opacity:.4}}
-.grid a.on::after{{content:"✓";position:absolute;inset:0;background:rgba(42,127,255,.45);font-size:2rem;display:flex;align-items:center;justify-content:center}}
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Dropboxer">
+<title>Dropboxer</title><style>
+body{{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#fff;color:#1f2a1f}}
+h2{{font-size:1.05rem;font-weight:600;margin:20px 0 8px}}
+.up{{background:#fff;border:1px solid #dfe3d9;border-radius:12px;padding:14px;margin-bottom:12px}}
+button,input[type=file]{{font-size:1rem}}
+button{{padding:8px 14px;border-radius:8px;border:1px solid #dfe3d9;background:#fff;color:#1f2a1f;cursor:pointer}}
+button:hover{{border-color:#5ea500;color:#4d8a00}}
+button.pri{{background:#5ea500;border-color:#5ea500;color:#fff}} button.pri:hover{{background:#4d8a00;color:#fff}}
+button.danger{{color:#c0392b;border-color:#e8b9b3}} button.danger:hover{{border-color:#c0392b;color:#c0392b}}
+button:disabled{{opacity:.4}}
+small,.muted{{color:#6b7568}} .ok{{color:#4d8a00}} .bad{{color:#c0392b}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}}
+.grid a{{display:block;aspect-ratio:1;background:#f3f6ee;border:1px solid #dfe3d9;border-radius:8px;overflow:hidden;position:relative;color:#1f2a1f;text-decoration:none}}
+.grid img,.grid video{{width:100%;height:100%;object-fit:cover}}
+#log div{{font-size:.85rem;margin:4px 0;color:#6b7568}} #log div.ok{{color:#4d8a00}} #log div.bad{{color:#c0392b}}
+.grid img,.grid video{{pointer-events:none}}
+.play{{position:absolute;right:6px;bottom:4px;font-size:.8rem;color:#fff;text-shadow:0 0 3px #000}}
+#bar{{margin:8px 0}} #bar button{{margin-right:6px}}
+.grid a.on{{border-color:#5ea500}}
+.grid a.on::after{{content:"✓";position:absolute;inset:0;background:rgba(94,165,0,.4);color:#fff;font-size:2rem;display:flex;align-items:center;justify-content:center}}
 </style></head><body>
 <h2>Send to this PC</h2><div class="up">
 Photos: <input id="f" type="file" multiple accept="image/*,video/*"><br><br>
 Long videos (if the tick will not press): save them to Files first, then pick here<br>
-<input id="f2" type="file" multiple> <br><br><button id="upbtn" onclick="up()">Upload</button> <button id="stopbtn" onclick="stop()" hidden style="background:#c33">Stop</button>
+<input id="f2" type="file" multiple> <br><br><button id="upbtn" class="pri" onclick="up()">Upload</button> <button id="stopbtn" onclick="stop()" hidden class="danger">Stop</button>
 <div id="total"></div><div id="log"></div></div>
 <h2>On this PC ({count} shown)</h2>
 <small>Tap a photo to open it. To keep many at once: Select, tick them, Download ZIP, open the ZIP in the Files app,
 select all, Share, Save.</small>
-<div id="bar"><button id="selbtn" onclick="toggleSel()">Select</button><button id="alln" onclick="selAll()" hidden>All</button><button id="zipbtn" onclick="zip()" hidden>Download ZIP</button><button id="delbtn" onclick="del()" hidden style="background:#c33">Delete</button><button id="savebtn" onclick="save()" hidden>Save to Photos</button></div><div id="savelog"></div>
+<div id="bar"><button id="selbtn" onclick="toggleSel()">Select</button><button id="alln" onclick="selAll()" hidden>All</button><button id="zipbtn" class="pri" onclick="zip()" hidden>Download ZIP</button><button id="delbtn" onclick="del()" hidden class="danger">Delete</button><button id="savebtn" class="pri" onclick="save()" hidden>Save to Photos</button></div><div id="savelog"></div>
 <div class="grid">{items}</div>
 <script>
 const T={token},PIECE=8*1024*1024;
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{{}});
-const io=new IntersectionObserver(es=>es.forEach(e=>{{if(e.isIntersecting){{e.target.src=e.target.dataset.src;io.unobserve(e.target);}}}}),{{rootMargin:'200px'}});
-document.querySelectorAll('video[data-src]').forEach(v=>io.observe(v));
 let sel=false;const chosen=new Set();
 const $=id=>document.getElementById(id);
 function upd(){{$('selbtn').textContent=sel?'Cancel':'Select';$('alln').hidden=$('zipbtn').hidden=$('delbtn').hidden=!sel;
@@ -374,8 +381,8 @@ class _Handler(BaseHTTPRequestHandler):
             if p.suffix.lower() in IMAGE_EXTS:
                 inner = f'<img loading="lazy" src="/{tok}/thumb/{rel}" alt="">'
                 href = f"/{tok}/view/{rel}"
-            else:  # the #t fragment makes iOS show the first frame as a preview
-                inner = f'<video data-src="/{tok}/file/{rel}#t=0.1" preload="metadata" muted playsinline></video><span class="play">▶</span>'
+            else:  # a still from the video; the tile falls back to its grey box if none can be made
+                inner = f'<img loading="lazy" src="/{tok}/thumb/{rel}" alt="" onerror="this.remove()"><span class="play">▶</span>'
                 href = f"/{tok}/file/{rel}"
             items.append(f'<a href="{href}" data-rel="{html.escape(p.relative_to(root).as_posix(), quote=True)}">{inner}</a>')
         page = PAGE.format(count=len(files), items="".join(items), token=json.dumps(self.server.token))
@@ -418,14 +425,14 @@ class _Handler(BaseHTTPRequestHandler):
             pass  # phone stopped listening (scrolled away)
 
     def _thumb(self, p: Path) -> None:
-        if p.suffix.lower() not in IMAGE_EXTS or p.stat().st_size > MAX_BYTES:
+        if p.suffix.lower() in IMAGE_EXTS and p.stat().st_size > MAX_BYTES:
             return self._send(HTTPStatus.NOT_FOUND, b"")
         st = p.stat()
         cache = CACHE_DIR / "web" / (hashlib.sha1(f"{p}|{st.st_size}|{st.st_mtime}".encode()).hexdigest() + ".png")
         try:
             png = cache.read_bytes()
         except OSError:
-            png = make_thumb(p.read_bytes(), WEB_THUMB)
+            png = make_thumb(p.read_bytes(), WEB_THUMB) if p.suffix.lower() in IMAGE_EXTS else local_thumb(p, WEB_THUMB)
             if png is None:
                 return self._send(HTTPStatus.NOT_FOUND, b"")
             try:
@@ -439,7 +446,7 @@ class _Handler(BaseHTTPRequestHandler):
         """A page holding the photo as a plain image, so press and hold offers Save to Photos."""
         src = f"/{quote(self.server.token)}/img/{quote(rel)}"
         page = ('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-                '<body style="margin:0;background:#000;color:#aaa;font-family:system-ui,sans-serif;text-align:center">'
+                '<body style="margin:0;background:#fff;color:#6b7568;font-family:system-ui,sans-serif;text-align:center">'
                 f'<p style="margin:10px">Press and hold the photo, then choose Save to Photos.</p><img src="{src}" style="max-width:100%">')
         self._send(HTTPStatus.OK, page.encode(), "text/html; charset=utf-8")
 
