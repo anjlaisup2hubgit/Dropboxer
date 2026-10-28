@@ -34,6 +34,26 @@ MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".heic
         ".tiff": "image/tiff", ".webp": "image/webp", ".mov": "video/quicktime", ".mp4": "video/mp4", ".m4v": "video/x-m4v"}
 
 
+def move_to_trash(p: Path) -> None:
+    """Send a file to the Windows Recycle Bin so a wrong tap can be undone; elsewhere, delete it."""
+    if os.name != "nt":
+        p.unlink()
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    class FileOp(ctypes.Structure):
+        _fields_ = [("hwnd", wintypes.HWND), ("func", wintypes.UINT), ("src", wintypes.LPCWSTR),
+                    ("dst", wintypes.LPCWSTR), ("flags", ctypes.c_ushort), ("aborted", wintypes.BOOL),
+                    ("mappings", ctypes.c_void_p), ("title", wintypes.LPCWSTR)]
+
+    FO_DELETE, FOF_SILENT, FOF_NOCONFIRMATION, FOF_ALLOWUNDO, FOF_NOERRORUI = 3, 0x4, 0x10, 0x40, 0x400
+    op = FileOp(None, FO_DELETE, str(p) + "\0", None,
+                FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI, False, None, None)
+    if ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op)) != 0 or op.aborted:
+        raise OSError(f"could not move {p.name} to the Recycle Bin")
+
+
 def lan_ip() -> str:
     """This PC's address on the local network (no packet is actually sent)."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -205,7 +225,7 @@ Long videos (if the tick will not press): save them to Files first, then pick he
 <h2>On this PC ({count} shown)</h2>
 <small>Tap a photo to open it. To keep many at once: Select, tick them, Download ZIP, open the ZIP in the Files app,
 select all, Share, Save.</small>
-<div id="bar"><button id="selbtn" onclick="toggleSel()">Select</button><button id="alln" onclick="selAll()" hidden>All</button><button id="zipbtn" onclick="zip()" hidden>Download ZIP</button><button id="savebtn" onclick="save()" hidden>Save to Photos</button></div><div id="savelog"></div>
+<div id="bar"><button id="selbtn" onclick="toggleSel()">Select</button><button id="alln" onclick="selAll()" hidden>All</button><button id="zipbtn" onclick="zip()" hidden>Download ZIP</button><button id="delbtn" onclick="del()" hidden style="background:#c33">Delete</button><button id="savebtn" onclick="save()" hidden>Save to Photos</button></div><div id="savelog"></div>
 <div class="grid">{items}</div>
 <script>
 const T={token},PIECE=8*1024*1024;
@@ -214,7 +234,8 @@ const io=new IntersectionObserver(es=>es.forEach(e=>{{if(e.isIntersecting){{e.ta
 document.querySelectorAll('video[data-src]').forEach(v=>io.observe(v));
 let sel=false;const chosen=new Set();
 const $=id=>document.getElementById(id);
-function upd(){{$('selbtn').textContent=sel?'Cancel':'Select';$('alln').hidden=$('zipbtn').hidden=!sel;
+function upd(){{$('selbtn').textContent=sel?'Cancel':'Select';$('alln').hidden=$('zipbtn').hidden=$('delbtn').hidden=!sel;
+  $('delbtn').textContent='Delete '+chosen.size;$('delbtn').disabled=!chosen.size;
   $('zipbtn').textContent='Download '+chosen.size+' as ZIP';$('zipbtn').disabled=!chosen.size;
   $('savebtn').hidden=!sel||!window.isSecureContext||!navigator.canShare;$('savebtn').disabled=!chosen.size;}}
 async function save(){{const L=$('savelog');
@@ -228,6 +249,12 @@ function selAll(){{document.querySelectorAll('.grid a').forEach(a=>{{chosen.add(
 document.querySelector('.grid').addEventListener('click',e=>{{
   const a=e.target.closest('a');if(!sel||!a)return;e.preventDefault();
   const r=a.dataset.rel;if(chosen.has(r)){{chosen.delete(r);a.classList.remove('on');}}else{{chosen.add(r);a.classList.add('on');}}upd();}});
+async function del(){{const n=chosen.size;
+  if(!n||!confirm('Delete '+n+' file(s) from the PC? They go to the PC\'s Recycle Bin.'))return;
+  const body=new URLSearchParams();chosen.forEach(r=>body.append('f',r));
+  try{{const res=await fetch('/'+T+'/delete',{{method:'POST',body}});
+    if(!res.ok)throw new Error(await res.text());location.reload();
+  }}catch(e){{$('savelog').textContent='Could not delete: '+e.message;}}}}
 function zip(){{const f=document.createElement('form');f.method='POST';f.action='/'+T+'/zip';
   chosen.forEach(r=>{{const i=document.createElement('input');i.type='hidden';i.name='f';i.value=r;f.appendChild(i);}});
   document.body.appendChild(f);f.submit();f.remove();}}
@@ -427,7 +454,7 @@ class _Handler(BaseHTTPRequestHandler):
     # ---- POST: selected files as one ZIP (stored, not compressed; streamed, never held in memory) ----
     def do_POST(self) -> None:
         route = self._route()
-        if route is None or route[0] != "zip":
+        if route is None or route[0] not in ("zip", "delete"):
             return self._send(HTTPStatus.NOT_FOUND, b"not found")
         try:
             n = int(self.headers.get("Content-Length", ""))
@@ -439,6 +466,8 @@ class _Handler(BaseHTTPRequestHandler):
         files = [p for p in (self._media(r) for r in rels) if p]
         if not files:
             return self._send(HTTPStatus.BAD_REQUEST, b"nothing selected")
+        if route[0] == "delete":
+            return self._delete(files)
         used: set[str] = set()
         entries = []
         for p in files:
@@ -459,6 +488,18 @@ class _Handler(BaseHTTPRequestHandler):
                 self.wfile.write(block)
         except (ConnectionError, OSError):
             pass  # phone cancelled
+
+    def _delete(self, files: list[Path]) -> None:
+        """Move the selected photos/videos (media inside the shared folder only) to the Recycle Bin."""
+        failed = 0
+        for p in files:
+            try:
+                move_to_trash(p)
+            except OSError:
+                failed += 1
+        if failed:
+            return self._send(HTTPStatus.INTERNAL_SERVER_ERROR, f"{failed} file(s) could not be deleted".encode())
+        self._send(HTTPStatus.OK, str(len(files)).encode())
 
     # ---- PUT (phone -> PC) ----
     def do_PUT(self) -> None:

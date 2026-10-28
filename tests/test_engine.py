@@ -443,6 +443,33 @@ def test_wifi_zip_of_selected_files(tmp_path):
         srv.stop()
 
 
+def test_wifi_delete_selected_files(tmp_path, monkeypatch):
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    from phototransfer import wifi
+
+    trashed = []
+    monkeypatch.setattr(wifi, "move_to_trash", lambda p: (trashed.append(p.name), p.unlink()))
+    srv, base = _wifi(tmp_path)
+    try:
+        (tmp_path / "secret.txt").write_text("keep")
+        body = urllib.parse.urlencode([("f", "clip.mov"), ("f", "secret.txt"), ("f", "../outside.jpg")]).encode()
+        with urllib.request.urlopen(urllib.request.Request(base + "/delete", data=body, method="POST")) as r:
+            assert r.read() == b"1"
+        assert trashed == ["clip.mov"] and not (tmp_path / "share" / "clip.mov").exists()
+        assert (tmp_path / "secret.txt").exists() and (tmp_path / "share" / "trip" / "a.jpg").exists()
+        with pytest.raises(urllib.error.HTTPError) as e:  # nothing valid selected
+            urllib.request.urlopen(urllib.request.Request(base + "/delete", data=b"f=nope.jpg", method="POST"))
+        assert e.value.code == 400
+        with pytest.raises(urllib.error.HTTPError) as e:  # wrong token
+            urllib.request.urlopen(urllib.request.Request(base.rsplit("/", 1)[0] + "/bad/delete", data=body, method="POST"))
+        assert e.value.code == 404
+    finally:
+        srv.stop()
+
+
 def test_wifi_zip_has_exact_content_length(tmp_path):
     import io
     import urllib.parse
