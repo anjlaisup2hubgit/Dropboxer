@@ -33,6 +33,46 @@ def is_video(path: str) -> bool:
     return PurePosixPath(path).suffix.lower() in VIDEO_EXTS
 
 
+def is_wav(path: str) -> bool:
+    return PurePosixPath(path).suffix.lower() == ".wav"
+
+
+def make_wave_thumb(path: str | Path, size: int = THUMB, crop: bool = False) -> bytes | None:
+    """PNG picture of a .wav file's loudness over time (a mirrored bar per slice), or None if it cannot be read."""
+    try:
+        import array
+        import wave
+
+        from PIL import Image, ImageDraw
+
+        with wave.open(str(path), "rb") as w:
+            width, chans, frames = w.getsampwidth(), w.getnchannels(), w.getnframes()
+            if width not in (1, 2) or not frames:  # 8 and 16 bit only; others keep the placeholder
+                return None
+            w_px, h_px = (size, size) if crop else (size, size // 2)
+            peaks = []
+            per = max(1, frames // w_px)
+            for _ in range(w_px):
+                data = w.readframes(per)
+                if not data:
+                    break
+                if width == 2:
+                    s = array.array("h", data[: len(data) - len(data) % 2])
+                    top = max(map(abs, s[::chans]), default=0) / 32768
+                else:
+                    top = max((abs(b - 128) for b in data[::chans]), default=0) / 128
+                peaks.append(top)
+        im = Image.new("RGB", (w_px, h_px), "#f3f6ee")
+        d, mid = ImageDraw.Draw(im), h_px / 2
+        for x, p in enumerate(peaks):
+            d.line([(x, mid - max(1, p * mid * 0.9)), (x, mid + max(1, p * mid * 0.9))], fill="#5ea500")
+        out = io.BytesIO()
+        im.save(out, "PNG")
+        return out.getvalue()
+    except Exception:
+        return None
+
+
 def _to_png(im, size: int, crop: bool) -> bytes:
     from PIL import ImageOps
 
@@ -80,6 +120,8 @@ def local_thumb(path: str | Path, size: int = THUMB, crop: bool = False) -> byte
     try:
         if is_video(p.name):
             return make_video_thumb(p, size, crop)
+        if is_wav(p.name):
+            return make_wave_thumb(p, size, crop)
         if is_image(p.name) and p.stat().st_size <= MAX_BYTES:
             return make_thumb(p.read_bytes(), size, crop)
     except OSError:

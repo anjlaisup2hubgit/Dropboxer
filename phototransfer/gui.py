@@ -16,7 +16,7 @@ from tkinter import filedialog, messagebox, ttk
 from .cli import DEFAULT_ROOT, DEFAULT_UPLOAD_ROOT, _human
 from .engine import copy_files, upload_files
 from .sources.base import RemoteFile, Source
-from .thumbs import THUMB, is_image, is_video, load_thumb, local_thumb
+from .thumbs import THUMB, is_image, is_video, is_wav, load_thumb, local_thumb
 
 SETTINGS_FILE = Path.home() / ".phototransfer" / "settings.json"
 POLL_MS = 100
@@ -557,6 +557,17 @@ class App:
         label.pack()
         win.bind("<Escape>", lambda _e: win.destroy())
         label.bind("<Button-1>", lambda _e: win.destroy())
+        if local and is_wav(f.path) and os.name == "nt":  # a .wav on this PC can be played right here
+            import winsound
+
+            def play() -> None:
+                winsound.PlaySound(f.path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+
+            bar = ttk.Frame(win)
+            bar.pack(pady=(0, 10))
+            ttk.Button(bar, text="▶ Play", style="Primary.TButton", command=play).pack(side="left", padx=4)
+            ttk.Button(bar, text="■ Stop", command=lambda: winsound.PlaySound(None, 0)).pack(side="left", padx=4)
+            win.bind("<Destroy>", lambda e: winsound.PlaySound(None, 0) if e.widget is win else None)
         win.focus_set()
         asyncio.run_coroutine_threadsafe(self._preview(f, local, win, label), self.loop)
 
@@ -606,7 +617,7 @@ class App:
         if self.busy or not (local or self.source):
             return
         for f in self.visible:
-            if f.path not in self.thumb_asked and (is_image(f.path) or is_video(f.path)):
+            if f.path not in self.thumb_asked and (is_image(f.path) or is_video(f.path) or (local and is_wav(f.path))):
                 self.thumb_asked.add(f.path)
                 asyncio.run_coroutine_threadsafe(self._thumb(f, local), self.loop)
 
