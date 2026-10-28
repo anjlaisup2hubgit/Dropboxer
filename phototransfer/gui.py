@@ -457,7 +457,7 @@ class App:
         c.delete("all")
         self.hits, self.visible = [], []
         if not self.layout:
-            msg = ("Send files from this PC to your iPhone.\nClick Show a folder… or Add files… to see what you can send."
+            msg = ("Nothing here yet."
                    if self.mode.get() == "send" and not self.all_files else
                    "No files match these filters." if self.all_files else
                    "Plug in your iPhone, unlock it,\ntap Trust, then click Connect iPhone.")
