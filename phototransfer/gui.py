@@ -592,8 +592,10 @@ class App:
             else:
                 c.create_text(x0 + THUMB // 2, y0 + THUMB // 2, fill=MUTED, font=("Segoe UI", 12, "bold"),
                               text=Path(f.path).suffix.lstrip(".").upper())
-            if is_video(f.path):
-                c.create_text(x0 + 6, y0 + THUMB - 6, anchor="sw", text="▶", fill="white", font=("Segoe UI", 10))
+            ext = Path(f.path).suffix.lower()
+            kind = "video" if ext in VIDEOS else "music" if ext in AUDIO else "doc" if ext in DOCS else "archive" if ext in ARCHIVES else ""
+            if kind:
+                self._kind_badge(x0 + 5, y0 + THUMB - 5 - 18, kind)
             if f.path in self.selected:
                 c.create_rectangle(x0, y0, x0 + THUMB, y0 + THUMB, outline=TICK_BLUE, width=3)
                 r = 13 * THUMB / 200  # blue disc with a white tick, bottom right, like the iPhone's
@@ -612,6 +614,24 @@ class App:
                 if t0 < t1:
                     c.create_line(l + k + t0, t + t0, l + k + t1, t + t1, fill=GREEN)
         self._load_visible()
+
+    def _kind_badge(self, x: float, y: float, kind: str) -> None:
+        """A small dark badge (24x18, top-left at x, y) with a white symbol: video, music, document or archive."""
+        c, w = self.canvas, "white"
+        c.create_rectangle(x, y, x + 24, y + 18, fill="#2b2f36", outline="")
+        if kind == "video":  # play triangle
+            c.create_polygon(x + 9, y + 4, x + 9, y + 14, x + 17, y + 9, fill=w, outline=w)
+        elif kind == "music":  # eighth note
+            c.create_oval(x + 7, y + 11, x + 12, y + 15, fill=w, outline=w)
+            c.create_line(x + 11.5, y + 13, x + 11.5, y + 4, x + 17, y + 6, fill=w, width=2)
+        elif kind == "doc":  # page with a folded corner and two text lines
+            c.create_polygon(x + 7, y + 3, x + 14, y + 3, x + 17, y + 6, x + 17, y + 15, x + 7, y + 15, outline=w, fill="")
+            c.create_line(x + 9, y + 9, x + 15, y + 9, fill=w)
+            c.create_line(x + 9, y + 12, x + 15, y + 12, fill=w)
+        else:  # archive: a box with a lid and a handle slot
+            c.create_rectangle(x + 6, y + 4, x + 18, y + 7, outline=w, fill="")
+            c.create_rectangle(x + 7, y + 7, x + 17, y + 15, outline=w, fill="")
+            c.create_line(x + 10, y + 10, x + 14, y + 10, fill=w, width=2)
 
     def _hit(self, e: tk.Event) -> tuple | None:
         x, y = self.canvas.canvasx(e.x), self.canvas.canvasy(e.y)
