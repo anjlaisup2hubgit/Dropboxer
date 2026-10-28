@@ -90,6 +90,7 @@ SEND_TO = {
     "Documents by Readdle": "com.readdle.ReaddleDocsIPad",
 }
 APP_NAME = "Dropboxer"
+BTN_W = 14  # every plain button has the same width (fits "28 Oct 2026 ▾" and the Vietnamese labels)
 # Warm map-paper background, thin lines, one grass-green accent.
 PAPER = "#f8fafd"  # inputs, buttons and pop-ups: a touch lighter than the window
 BG, HEAD, PANEL, SOFT, LINE = "#eef3f8", "#e1e9f2", PAPER, "#e3eaf2", "#c9d5e2"
@@ -122,7 +123,7 @@ class DateField(ttk.Frame):
         super().__init__(parent)
         self.var, self.placeholder, self.on_change = var, placeholder, on_change
         self.pop: tk.Toplevel | None = None
-        self.btn = ttk.Button(self, command=self.toggle, style="Narrow.TButton", width=-11)  # minimum width: a picked date is longer than "Any date"
+        self.btn = ttk.Button(self, command=self.toggle, style="Narrow.TButton", width=BTN_W)
         self.btn.pack()
         var.trace_add("write", lambda *_: self._label())
         self._label()
@@ -371,7 +372,7 @@ class App:
         lang.set(LANGUAGES[language()])
         lang.pack(side="right")
         lang.bind("<<ComboboxSelected>>", lambda _e: self._set_language(lang.current()))
-        ttk.Button(head, text=T("How to use"), width=11, command=self.show_manual).pack(side="right", padx=(0, 8), ipady=1)
+        ttk.Button(head, text=T("How to use"), style="Narrow.TButton", width=BTN_W, command=self.show_manual).pack(side="right", padx=(0, 8))
 
         self.top = top = ttk.Frame(self.root, padding=(16, 12, 16, 6))
         top.pack(fill="x")
@@ -382,8 +383,8 @@ class App:
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
         self.copy_btn = ttk.Button(top, text=T("Copy"), style="Primary.TButton", command=self.primary_action, state="disabled")
         self.copy_btn.pack(side="left", padx=(16, 0))
-        self.add_btn = ttk.Button(top, text=T("Add files…"), command=self.choose_files)  # PC to iPhone only
-        self.folder_btn = ttk.Button(top, text=T("Folder…"), command=self.send_folder)  # PC to iPhone only
+        self.add_btn = ttk.Button(top, text=T("Add files…"), style="Narrow.TButton", width=BTN_W, command=self.choose_files)  # PC to iPhone only
+        self.folder_btn = ttk.Button(top, text=T("Folder…"), style="Narrow.TButton", width=BTN_W, command=self.send_folder)  # PC to iPhone only
         self.cancel_btn = ttk.Button(top, text=T("Stop"), style="Danger.TButton", command=self.cancel.set)
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
@@ -395,7 +396,7 @@ class App:
         ttk.Label(row, text=T("Save in")).pack(side="left")
         self.dest = tk.StringVar(value=_load_settings().get("dest") or str(Path.home() / "Pictures" / "iPhone"))
         ttk.Entry(row, textvariable=self.dest).pack(side="left", fill="x", expand=True, padx=8)
-        ttk.Button(row, text=T("Change"), command=self.browse).pack(side="left")
+        ttk.Button(row, text=T("Change"), style="Narrow.TButton", width=BTN_W, command=self.browse).pack(side="left")
         self.remote_row = row = ttk.Frame(self.rows)  # PC to iPhone: where on the phone
         ttk.Label(row, text=T("Send to")).pack(side="left")
         self.send_names = {T(k): k for k in SEND_TO}  # what the list shows -> its key in SEND_TO
@@ -421,9 +422,9 @@ class App:
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0))
         self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
-        self.connect_btn = ttk.Button(bar, text=T("Reload"), command=self.connect)  # iPhone to PC, once files are listed
-        self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi share"), command=self.wifi_share)
-        ttk.Button(bar, text=T("Clear dates"), style="Narrow.TButton", command=self.clear_dates).pack(side="right")
+        self.connect_btn = ttk.Button(bar, text=T("Reload"), style="Narrow.TButton", width=BTN_W, command=self.connect)  # iPhone to PC, once files are listed
+        self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi share"), style="Narrow.TButton", width=BTN_W, command=self.wifi_share)
+        ttk.Button(bar, text=T("Clear dates"), style="Narrow.TButton", width=BTN_W, command=self.clear_dates).pack(side="right")
         for var, text, hint in ((self.date_to, T("to"), T("Any date")), (self.date_from, T("From"), T("Any date"))):
             DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
             ttk.Label(bar, text=text).pack(side="right", padx=(10, 0))
