@@ -55,6 +55,12 @@ MANUAL = [
     ("h", "Filters and dates"),
     ("p", "Gallery shows photos and videos together; Music, Documents and Archives show those kinds; All shows everything."),
     ("p", "From / to keep only files dated in that range. Clear dates clears both. Selecting only counts files that are shown."),
+    ("h", "Icons on pictures"),
+    ("p", "A small badge in the corner of a tile tells you what kind of file it is. Photos have no badge."),
+    ("i", "video", "Video: double-click to play it."),
+    ("i", "music", "Music: double-click to play it."),
+    ("i", "doc", "Document (PDF, Word, text, e-books…)."),
+    ("i", "archive", "Archive or installer (ZIP, RAR, EXE…)."),
     ("h", "PC to iPhone"),
     ("p", "Add files... picks single files; Folder... lists everything supported inside a folder (nothing is selected yet). Then select and press Send."),
     ("p", "Send to: Music cannot be filled over USB. To send music, choose VLC or Documents by Readdle and find the files in that app."),
@@ -615,9 +621,9 @@ class App:
                     c.create_line(l + k + t0, t + t0, l + k + t1, t + t1, fill=GREEN)
         self._load_visible()
 
-    def _kind_badge(self, x: float, y: float, kind: str) -> None:
+    def _kind_badge(self, x: float, y: float, kind: str, c: tk.Canvas | None = None) -> None:
         """A small dark badge (24x18, top-left at x, y) with a white symbol: video, music, document or archive."""
-        c, w = self.canvas, "white"
+        c, w = c or self.canvas, "white"
         c.create_rectangle(x, y, x + 24, y + 18, fill="#2b2f36", outline="")
         if kind == "video":  # play triangle
             c.create_polygon(x + 9, y + 4, x + 9, y + 14, x + 17, y + 9, fill=w, outline=w)
@@ -1004,8 +1010,14 @@ class App:
         text.config(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         text.pack(fill="both", expand=True)
-        for kind, line in MANUAL:
-            text.insert("end", T(line) + "\n", kind if kind in ("h", "s") else ())
+        for kind, *rest in MANUAL:
+            if kind == "i":  # an icon, drawn the same way as on the tiles, then what it means
+                badge = tk.Canvas(text, width=24, height=18, background=PAPER, highlightthickness=0)
+                self._kind_badge(0, 0, rest[0], badge)
+                text.window_create("end", window=badge, padx=2, pady=2)
+                text.insert("end", "  " + T(rest[1]) + "\n")
+                continue
+            text.insert("end", T(rest[0]) + "\n", kind if kind in ("h", "s") else ())
         text.insert("end", "\n")
         for name, exts in (("Gallery", PHOTOS | VIDEOS), ("Music", AUDIO), ("Documents", DOCS), ("Archives", ARCHIVES)):
             text.insert("end", T(name) + ": ", "h")
