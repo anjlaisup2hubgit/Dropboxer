@@ -43,6 +43,27 @@ KINDS = {
     "Archives": ARCHIVES,
     "All": None,
 }
+MANUAL = [
+    ("h", "Selecting"),
+    ("p", "Click a picture to select it; click it again to unselect."),
+    ("p", "Shift-click selects everything between your last click and this one (if the last click unselected, the range unselects)."),
+    ("p", "Click a day's heading to select all of that day; click it again to unselect the whole day."),
+    ("p", "Hold the left button and drag a box to select every picture it touches. Drag a box over pictures that are already selected (or start it on one) to unselect them."),
+    ("p", "Drag past the top or bottom of the list to scroll while boxing."),
+    ("p", "Double-click a picture to open a larger preview; photos, videos and music play there."),
+    ("p", "Ctrl+A selects all shown files, Esc clears the selection. Select all / Deselect all are above the list."),
+    ("h", "Filters and dates"),
+    ("p", "Gallery shows photos and videos together; Music, Documents and Archives show those kinds; All shows everything."),
+    ("p", "From / to keep only files dated in that range. Reset clears both. Selecting only counts files that are shown."),
+    ("h", "PC to iPhone"),
+    ("p", "Add files... picks single files; Folder... lists everything supported inside a folder (nothing is selected yet). Then select and press Send."),
+    ("p", "Sent files go into the folder named on the iPhone, so they do not appear in the Photos app. Sending into /DCIM is refused because it can confuse Photos."),
+    ("h", "iPhone to PC"),
+    ("p", "Connect the iPhone by USB, unlock it and tap Trust. Copied files are sorted into date folders under the folder in Save in."),
+    ("p", "Wi-Fi shares a page the phone's browser can use without a cable. The Safari page must stay open and in front while it uploads."),
+    ("h", "Accepted file types"),
+    ("p", "Anything else (for example .bin or .dll) is not accepted by the Wi-Fi page. Installers are only stored, never run. Kindle and other e-book formats need a reader app on the phone."),
+]
 # PC to iPhone destinations. The Music app cannot be filled over USB, so music goes into the Documents
 # folder of a player that allows file sharing; the first choice is a plain folder (what photos use).
 SEND_TO = {
@@ -306,6 +327,7 @@ class App:
         lang.set(LANGUAGES[language()])
         lang.pack(side="right")
         lang.bind("<<ComboboxSelected>>", lambda _e: self._set_language(lang.current()))
+        ttk.Button(head, text=T("How to use"), width=11, command=self.show_manual).pack(side="right", padx=(0, 8), ipady=1)
 
         self.top = top = ttk.Frame(self.root, padding=(16, 12, 16, 6))
         top.pack(fill="x")
@@ -316,12 +338,13 @@ class App:
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
         self.copy_btn = ttk.Button(top, text=T("Copy"), style="Primary.TButton", command=self.primary_action, state="disabled")
         self.copy_btn.pack(side="left", padx=(16, 0))
+        self.add_btn = ttk.Button(top, text=T("Add files…"), command=self.choose_files)  # PC to iPhone only
         self.folder_btn = ttk.Button(top, text=T("Folder…"), command=self.send_folder)  # PC to iPhone only
         self.cancel_btn = ttk.Button(top, text=T("Stop"), style="Danger.TButton", command=self.cancel.set)
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
-        self.bar = ttk.Progressbar(top, maximum=100)
-        self.bar.pack(side="left", fill="x", expand=True, padx=12)
+        self.bar = ttk.Progressbar(top, maximum=100, length=140)
+        self.bar.pack(side="left", padx=12)
 
         # Where the files go.
         self.rows = ttk.Frame(self.root, padding=(16, 0, 16, 8))
@@ -416,7 +439,8 @@ class App:
         if sending:
             self.dest_row.pack_forget()
             self.remote_row.pack(fill="x")
-            self.folder_btn.pack(side="left", padx=(8, 0), after=self.copy_btn)
+            self.folder_btn.pack(side="right", padx=(6, 0), before=self.count)  # right edge, above the date boxes
+            self.add_btn.pack(side="right", padx=(6, 0), before=self.count)
             if not self.all_files and not self.send_scanned:  # first visit: preview the Pictures folder
                 self.send_scanned = True
                 self._show_folder(Path.home() / "Pictures")
@@ -426,6 +450,7 @@ class App:
             self.remote_row.pack_forget()
             self.dest_row.pack(fill="x")
             self.folder_btn.pack_forget()
+            self.add_btn.pack_forget()
             self.status.config(text="")
         self._fill()
 
@@ -739,8 +764,9 @@ class App:
         n = len(self.selected_files())
         ready = bool(self.source) and not self.busy
         if self.mode.get() == "send":
-            self.copy_btn.config(text=T("Send {n}", n=n) if n else T("Add files…"),
-                                 state=("normal" if ready else "disabled") if n else ("disabled" if self.busy else "normal"))
+            self.copy_btn.config(text=T("Send {n}", n=n) if n else T("Send"), state="normal" if ready and n else "disabled")
+            self.add_btn.config(state="disabled" if self.busy else "normal")
+            self.folder_btn.config(state="disabled" if self.busy else "normal")
         else:
             self.copy_btn.config(text=T("Copy {n}", n=n) if n else T("Copy"), state="normal" if ready and n else "disabled")
         self.connect_btn.config(text=T("Reconnect") if self.failed else T("Reload"))
@@ -902,6 +928,30 @@ class App:
         self.remote_label.config(text=T("folder") if app is None else T("subfolder (optional)"))
         self.send_note.config(text=T("Won't show in Photos.") if app is None else
                               T("Find them in {app}.", app=self.send_to.get().split(" (")[0]))
+
+    def show_manual(self) -> None:
+        """The instruction manual: the things the window does not make obvious, and what files are accepted."""
+        win = tk.Toplevel(self.root)
+        win.title(T("How to use"))
+        win.configure(background=BG)
+        win.geometry("640x560")
+        win.transient(self.root)
+        text = tk.Text(win, wrap="word", background=PAPER, foreground=TEXT, relief="flat", padx=18, pady=14,
+                       font=("Segoe UI", 10), spacing1=2, spacing3=3, highlightthickness=1, highlightbackground=LINE)
+        text.tag_configure("h", font=("Segoe UI", 12, "bold"), foreground=GREEN_DARK, spacing1=12, spacing3=4)
+        scroll = ttk.Scrollbar(win, command=text.yview)
+        text.config(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        text.pack(fill="both", expand=True)
+        for kind, line in MANUAL:
+            text.insert("end", T(line) + "\n", "h" if kind == "h" else ())
+        text.insert("end", "\n")
+        for name, exts in (("Gallery", PHOTOS | VIDEOS), ("Music", AUDIO), ("Documents", DOCS), ("Archives", ARCHIVES)):
+            text.insert("end", T(name) + ": ", "h")
+            text.insert("end", " ".join(sorted(exts)) + "\n")
+        text.config(state="disabled")
+        win.bind("<Escape>", lambda _e: win.destroy())
+        win.focus_set()
 
     def choose_files(self) -> None:
         names = filedialog.askopenfilenames(title=T("Choose files to send to the phone"), filetypes=[

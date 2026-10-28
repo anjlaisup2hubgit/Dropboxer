@@ -25,6 +25,8 @@ VI = {
     "All": "Tất cả",
     "Photos": "Ảnh",
     "Gallery": "Thư viện",
+    "How to use": "Hướng dẫn",
+    "Send": "Gửi",
     "Videos": "Video",
     "Music": "Nhạc",
     "Documents": "Tài liệu",
