@@ -317,11 +317,27 @@ class App:
                     lightcolor="#c9d5e2", darkcolor="#c9d5e2")
         s.map("Vertical.TScrollbar", background=[("active", "#b5c4d5")])
 
-    @staticmethod
-    def _zigzag(c: tk.Canvas, width: int) -> None:
+    def _zigzag(self) -> None:
+        """The strip under the title; it doubles as the progress bar, filling left to right."""
+        c, width = self.banner, self.banner.winfo_width()
+        cut = width * self.progress / 100
         c.delete("all")
+        c.create_rectangle(0, 0, cut, 18, fill=GREEN_DARK, outline="")
         for x in range(0, width + 36, 36):
-            c.create_polygon(x, 0, x + 36, 0, x + 18, 18, fill="#bcd1e8", outline="")
+            tri = [(x, 0), (x + 36, 0), (x + 18, 18)]
+            c.create_polygon(tri, fill="#bcd1e8", outline="")
+            part = []  # the triangle clipped to x <= cut
+            for (ax, ay), (bx, by) in zip(tri, tri[1:] + tri[:1]):
+                if ax <= cut:
+                    part.append((ax, ay))
+                if (ax <= cut) != (bx <= cut):
+                    part.append((cut, ay + (by - ay) * (cut - ax) / (bx - ax)))
+            if len(part) >= 3:
+                c.create_polygon(part, fill=GREEN, outline="")
+
+    def _set_progress(self, pct: float) -> None:
+        self.progress = pct
+        self._zigzag()
 
     def _build(self) -> None:
         self._style()
@@ -329,9 +345,10 @@ class App:
         head = ttk.Frame(self.root, style="Head.TFrame", padding=(16, 12))
         head.pack(fill="x")
         tk.Frame(self.root, height=1, background=LINE).pack(fill="x")  # thin line under the header
-        banner = tk.Canvas(self.root, height=18, highlightthickness=0, background="#a9c3e0")  # zigzag strip, like the card banners
-        banner.pack(fill="x")
-        banner.bind("<Configure>", lambda e: self._zigzag(banner, e.width))
+        self.progress = 0.0
+        self.banner = tk.Canvas(self.root, height=18, highlightthickness=0, background="#a9c3e0")  # zigzag strip, like the card banners
+        self.banner.pack(fill="x")
+        self.banner.bind("<Configure>", lambda _e: self._zigzag())
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
         lang = ttk.Combobox(head, values=list(LANGUAGES.values()), state="readonly", width=11)
         lang.set(LANGUAGES[language()])
@@ -353,8 +370,6 @@ class App:
         self.cancel_btn = ttk.Button(top, text=T("Stop"), style="Danger.TButton", command=self.cancel.set)
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
-        self.bar = ttk.Progressbar(top, maximum=100, length=140)
-        self.bar.pack(side="left", padx=12)
 
         # Where the files go.
         self.rows = ttk.Frame(self.root, padding=(16, 0, 16, 8))
@@ -828,7 +843,7 @@ class App:
             jobs = 1
             self.jobs.set(1)
         self.cancel.clear()
-        self.bar.config(value=0)
+        self._set_progress(0)
         self.total = sum(f.size for f in files)
         self.done: dict[str, int] = {}
         self.verb, self.nfiles, self.sizes = "Copying", len(files), {}
@@ -1034,7 +1049,7 @@ class App:
             messagebox.showerror(T("Not allowed"), T("Sending into /DCIM can confuse the Photos app. Pick another folder."))
             return
         self.cancel.clear()
-        self.bar.config(value=0)
+        self._set_progress(0)
         self.total = sum(p.stat().st_size for p in paths)
         self.done = {}
         self.verb, self.nfiles, self.sizes = "Sending", len(paths), {}
@@ -1112,14 +1127,14 @@ class App:
             self.done[path] = done  # bytes done per file; the bar sums them
             self.sizes[path] = total
             pct = 100 * sum(self.done.values()) / max(1, self.total)
-            self.bar.config(value=pct)
+            self._set_progress(pct)
             finished = sum(1 for q, d in self.done.items() if d >= self.sizes.get(q, 0))
             name = PurePosixPath(path.replace("\\", "/")).name
             self.status.config(text=T("{verb} {i} of {n}: {name}  ({pct:.0f}%)", verb=T(self.verb), i=min(finished + 1, self.nfiles), n=self.nfiles, name=name, pct=pct))
         elif kind == "finished":
             s = ev[1]
             self.busy = False
-            self.bar.config(value=100 if not (s.aborted or self.cancel.is_set()) else self.bar["value"])
+            self._set_progress(100 if not (s.aborted or self.cancel.is_set()) else self.progress)
             verb, already = ev[2:] if len(ev) > 2 else ("Copied", "already done")
             msg = T("{verb} {n} ({size}), skipped {skipped} {already}, failed {failed}.", verb=T(verb), n=len(s.copied),
                     size=_human(s.bytes_copied), skipped=len(s.skipped), already=T(already), failed=len(s.failed))
