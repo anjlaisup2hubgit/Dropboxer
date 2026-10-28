@@ -54,28 +54,30 @@ MANUAL = [
     ("p", "Ctrl+A selects all shown files, Esc clears the selection. Select all / Deselect all are above the list."),
     ("h", "Filters and dates"),
     ("p", "Gallery shows photos and videos together; Music, Documents and Archives show those kinds; All shows everything."),
-    ("p", "From / to keep only files dated in that range. Reset clears both. Selecting only counts files that are shown."),
+    ("p", "From / to keep only files dated in that range. Clear dates clears both. Selecting only counts files that are shown."),
     ("h", "PC to iPhone"),
     ("p", "Add files... picks single files; Folder... lists everything supported inside a folder (nothing is selected yet). Then select and press Send."),
+    ("p", "Send to: Music cannot be filled over USB. To send music, choose VLC or Documents by Readdle and find the files in that app."),
+    ("p", "The Wi-Fi window shares the Save in folder: the phone sees the photos there, and uploads from the phone land there too. Change it in the Wi-Fi window or above."),
     ("p", "Sent files go into the folder named on the iPhone, so they do not appear in the Photos app. Sending into /DCIM is refused because it can confuse Photos."),
     ("h", "iPhone to PC"),
     ("s", "With a USB cable:"),
     ("p", "1. Plug the iPhone into the PC with the cable."),
     ("p", "2. Unlock the iPhone."),
     ("p", "3. Tap Trust on the iPhone."),
-    ("p", "4. Click iPhone to PC at the top; the files are listed."),
+    ("p", "4. Click USB-C cable in the middle of the window; the files are listed."),
     ("p", "5. Select files, check Save in, then click Copy. Copied files are sorted into date folders under the folder in Save in."),
     ("s", "With Wi-Fi (no cable):"),
     ("p", "1. Put the phone and the PC on the same Wi-Fi."),
-    ("p", "2. Click Wi-Fi above the list."),
+    ("p", "2. Click Wi-Fi share (in the middle of the window, or above the list once files are shown)."),
     ("p", "3. Scan the code with the phone's camera and open the link in Safari."),
-    ("p", "4. First time only: if the window shows a \"First time, trust\" link, open it on the phone first."),
+    ("p", "4. Only if you ticked the HTTPS box: the first time, open the \"First time only\" link in the window on the phone to set it up."),
     ("p", "5. Choose files on the page. The Safari page must stay open and in front while it uploads."),
     ("s", "With Tailscale (no Wi-Fi, no cable):"),
     ("p", "1. Install Tailscale on the PC and on the iPhone, and sign in to the same account on both."),
     ("p", "2. Turn Tailscale on for both; the PC must stay on."),
-    ("p", "3. Click Wi-Fi above the list on the PC."),
-    ("p", "4. Copy the link in the Away from home box and open it in Safari on the iPhone (type or send it to yourself)."),
+    ("p", "3. Click Wi-Fi share on the PC."),
+    ("p", "4. Copy the link in the Away from home (needs Tailscale) box and open it in Safari on the iPhone (type or send it to yourself)."),
     ("p", "5. Choose files on the page. Keep Safari open and in front while it uploads. Save to Photos is not available on this link; use Select and ZIP."),
     ("h", "Accepted file types"),
     ("p", "Anything else (for example .bin or .dll) is not accepted by the Wi-Fi page. Installers are only stored, never run. Kindle and other e-book formats need a reader app on the phone."),
@@ -396,7 +398,7 @@ class App:
         self.remote_label = ttk.Label(row, text=T("folder"))
         self.remote_label.pack(side="left")
         ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
-        self.send_note = ttk.Label(row, text=T("Won't show in Photos."), style="Muted.TLabel")
+        self.send_note = ttk.Label(row, text="⚠ " + T("Won't show in Photos."), style="Muted.TLabel", foreground=RED)
         self.send_note.pack(side="left")
 
         # Filters and select-all sit in view, because they are used all the time.
@@ -409,11 +411,12 @@ class App:
         self.all_ticked = tk.BooleanVar(value=False)
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0))
-        self.deselect_btn = ttk.Button(bar, text=T("Deselect all"), command=self.clear_selection)  # shown while something is selected
+        self.deselect_btn = ttk.Button(bar, text=T("Deselect all"), command=self.clear_selection, state="disabled")  # enabled while something is selected
+        self.deselect_btn.pack(side="left", padx=(10, 0))
         self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
         self.connect_btn = ttk.Button(bar, text=T("Reload"), command=self.connect)  # iPhone to PC, once files are listed
-        self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi"), command=self.wifi_share)
-        ttk.Button(bar, text=T("Reset"), command=self.clear_dates).pack(side="right")
+        self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi share"), command=self.wifi_share)
+        ttk.Button(bar, text=T("Clear dates"), command=self.clear_dates).pack(side="right")
         for var, text, hint in ((self.date_to, T("to"), T("Any date")), (self.date_from, T("From"), T("Any date"))):
             DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
             ttk.Label(bar, text=text, style="Muted.TLabel").pack(side="right", padx=(10, 0))
@@ -442,7 +445,7 @@ class App:
         for text, command in (("USB-C cable", self.connect), ("Wi-Fi share", self.wifi_share)):
             ttk.Button(self.empty, text=T(text), style="Primary.TButton", command=command, width=16).pack(side="left", padx=8, ipady=8)
 
-        self.status = ttk.Label(self.root, text=T("Unlock your iPhone and tap Trust."),
+        self.status = ttk.Label(self.root, text="",
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
         self.status.pack(side="bottom", fill="x", before=mid)  # a short window shrinks the grid, not the status
 
@@ -482,7 +485,7 @@ class App:
             self.dest_row.pack(fill="x")
             self.folder_btn.pack_forget()
             self.add_btn.pack_forget()
-            self.status.config(text="")
+            self.status.config(text="" if self.all_files else T("Unlock your iPhone and tap Trust."))
         self._fill()
 
     def primary_action(self) -> None:
@@ -558,7 +561,8 @@ class App:
             if self.mode.get() == "receive" and not self.all_files:
                 c.create_window(mid_x, mid_y, window=self.empty)
             else:
-                c.create_text(mid_x, mid_y, text=T("No files match these filters.") if self.all_files else T("Nothing here yet."),
+                empty = T("Click Add files… or Folder… to choose what to send.") if self.mode.get() == "send" else T("Nothing here yet.")
+                c.create_text(mid_x, mid_y, text=T("No files match these filters.") if self.all_files else empty,
                               fill=MUTED, font=("Segoe UI", 13))
             return
         top = c.canvasy(0)
@@ -784,10 +788,7 @@ class App:
     def _update_count(self) -> None:
         sel = self.selected_files()
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
-        if sel:
-            self.deselect_btn.pack(side="left", padx=(10, 0), after=self.select_all_cb)
-        else:
-            self.deselect_btn.pack_forget()
+        self.deselect_btn.config(state="normal" if sel else "disabled")
         self.count.config(text=f"{T('{n} selected', n=len(sel))}  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
 
@@ -864,7 +865,7 @@ class App:
         self.events.put(("finished", summary))
 
     def wifi_share(self) -> None:
-        """Share the 'Copy to' folder with phones on this Wi-Fi: view photos there, upload from the phone."""
+        """Share the 'Save in' folder with phones on this Wi-Fi: view photos there, upload from the phone."""
         if getattr(self, "wifi_win", None) and self.wifi_win.winfo_exists():
             self.wifi_win.lift()
             return
@@ -892,7 +893,7 @@ class App:
         ttk.Label(win, text=T("Scan with your phone (same Wi-Fi)")).pack()
         link = ttk.Entry(win, width=44)
         link.pack(padx=12, pady=4)
-        away_label = ttk.Label(win, text=T("Away from home:"))
+        away_label = ttk.Label(win, text=T("Away from home (needs Tailscale):"))
         away = ttk.Entry(win, width=44)
         https = tk.BooleanVar(value=False)
         note = ttk.Label(win, justify="center", wraplength=340, padding=8)
@@ -907,7 +908,7 @@ class App:
             link.config(state="readonly")
             text = T("Saves to: {folder}", folder=folder)
             if server.tls:
-                text += "\n" + T("First time, trust: {url}", url=server.cert_url)
+                text += "\n" + T("First time only, open this on the phone to set it up: {url}", url=server.cert_url)
             away.config(state="normal")
             away.delete(0, "end")
             if server.remote_url:
@@ -919,6 +920,15 @@ class App:
                 away.pack_forget()
             away.config(state="readonly")
             note.config(text=text)
+
+        def change_folder() -> None:
+            nonlocal folder, server
+            d = filedialog.askdirectory(parent=win, initialdir=folder if folder.exists() else None)
+            if not d:
+                return
+            folder = Path(d)
+            self.dest.set(d)  # the shared folder and "Save in" are the same folder
+            toggle()
 
         def toggle() -> None:
             nonlocal server
@@ -933,8 +943,9 @@ class App:
             count.config(text=T("{n} files received", n=0))
             show()
 
-        ttk.Checkbutton(win, text=T("HTTPS (save many photos at once)"), variable=https,
+        ttk.Checkbutton(win, text=T("Save many photos at once (needs a one-time setup on the phone)"), variable=https,
                         command=toggle).pack()
+        ttk.Button(win, text=T("Change shared folder"), command=change_folder).pack(pady=(0, 4))
         note.pack()
         count.pack()
 
@@ -957,8 +968,9 @@ class App:
         app = SEND_TO[self.send_names[self.send_to.get()]]
         self.remote.set(DEFAULT_UPLOAD_ROOT if app is None else "")
         self.remote_label.config(text=T("folder") if app is None else T("subfolder (optional)"))
-        self.send_note.config(text=T("Won't show in Photos.") if app is None else
-                              T("Find them in {app}.", app=self.send_to.get().split(" (")[0]))
+        self.send_note.config(text="⚠ " + T("Won't show in Photos.") if app is None else
+                              T("Find them in {app}.", app=self.send_to.get().split(" (")[0]),
+                              foreground=RED if app is None else MUTED)
 
     def show_manual(self) -> None:
         """The instruction manual: the things the window does not make obvious, and what files are accepted."""
