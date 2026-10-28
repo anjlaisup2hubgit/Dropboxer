@@ -24,6 +24,7 @@ VI = {
     "Find them in {app}.": "Tìm trong {app}.",
     "All": "Tất cả",
     "Photos": "Ảnh",
+    "Gallery": "Thư viện",
     "Videos": "Video",
     "Music": "Nhạc",
     "Documents": "Tài liệu",

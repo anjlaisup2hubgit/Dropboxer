@@ -34,13 +34,14 @@ AUDIO = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".wma", ".web
 DOCS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".csv", ".md", ".odt", ".ods", ".odp",
         ".pages", ".numbers", ".key", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr"}
 ARCHIVES = {".zip", ".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".lz4", ".tbz2", ".txz", ".cab", ".iso", ".dmg", ".exe", ".msi", ".apk", ".jar"}
+PHOTOS = {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff", ".webp"}
+VIDEOS = {".mov", ".mp4", ".m4v"}
 KINDS = {
-    "All": None,
-    "Photos": {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff", ".webp"},
-    "Videos": {".mov", ".mp4", ".m4v"},
+    "Gallery": PHOTOS | VIDEOS,
     "Music": AUDIO,
     "Documents": DOCS,
     "Archives": ARCHIVES,
+    "All": None,
 }
 # PC to iPhone destinations. The Music app cannot be filled over USB, so music goes into the Documents
 # folder of a player that allows file sharing; the first choice is a plain folder (what photos use).
@@ -347,7 +348,7 @@ class App:
         # Filters and select-all sit in view, because they are used all the time.
         bar = ttk.Frame(self.root, padding=(16, 0, 16, 2))
         bar.pack(fill="x")
-        self.kind = tk.StringVar(value="All")
+        self.kind = tk.StringVar(value="Gallery")
         for name in KINDS:
             ttk.Radiobutton(bar, text=T(name), value=name, variable=self.kind, style="Seg.Toolbutton",
                             command=self._fill).pack(side="left", padx=(0, 2))
@@ -562,7 +563,7 @@ class App:
 
     def _drag(self, e: tk.Event) -> None:
         """Hold the left button and drag: every tile the box touches is selected (on top of what was already);
-        start on a selected tile and it unselects them instead."""
+        start on a selected tile, or box only selected ones, and it unselects them instead."""
         if not self.band_from:
             return
         c = self.canvas
@@ -575,7 +576,9 @@ class App:
         self.band = (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
         l, t, rt, b = self.band
         hit = {h[5].path for h in self.hits if h[4] == "cell" and h[0] < rt and h[2] > l and h[1] < b and h[3] > t}
-        self.selected = self.band_base - hit if self.band_erase else self.band_base | hit
+        # starting on a selected tile, or boxing only tiles that are already selected, unselects them
+        erase = self.band_erase or (bool(hit) and hit <= self.band_base)
+        self.selected = self.band_base - hit if erase else self.band_base | hit
         self._update_count()
         self._schedule_redraw()
 
@@ -905,7 +908,7 @@ class App:
             (T("All files"), "*.*"), (T("Music"), " ".join(f"*{e}" for e in sorted(AUDIO))),
             (T("Documents"), " ".join(f"*{e}" for e in sorted(DOCS))),
             (T("Archives"), " ".join(f"*{e}" for e in sorted(ARCHIVES))),
-            (T("Photos and videos"), " ".join(f"*{e}" for e in sorted(KINDS["Photos"] | KINDS["Videos"])))])
+            (T("Photos and videos"), " ".join(f"*{e}" for e in sorted(PHOTOS | VIDEOS)))])
         if names:
             self._add_to_send([Path(n) for n in names])
 
@@ -916,7 +919,7 @@ class App:
 
     def _show_folder(self, folder: Path) -> None:
         """List the photos, videos, music and documents inside a folder (nothing ticked yet) so they can be previewed and picked."""
-        exts = KINDS["Photos"] | KINDS["Videos"] | AUDIO | DOCS | ARCHIVES
+        exts = PHOTOS | VIDEOS | AUDIO | DOCS | ARCHIVES
         self.status.config(text=T("Looking in {folder}…", folder=folder))
 
         def scan() -> None:
