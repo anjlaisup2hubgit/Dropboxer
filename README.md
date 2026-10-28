@@ -28,14 +28,14 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m phototransfer send D:\ToPhone               # PC -> phone, into /PhotoTransfer
 .\.venv\Scripts\python.exe -m phototransfer send D:\ToPhone --to /Books   # pick another folder on the phone
 ```
-`send` uploads a file or folder, then reads each file back from the phone and checks SHA-256 (a bad one is deleted). Files already there with the same size are skipped. It keeps the folder layout but cannot set the phone-side timestamp. In the GUI, after Connect, use **Send files…** / **Send folder…** (the folder box sets the destination on the phone; `/DCIM` is refused).
+`send` uploads a file or folder, then reads each file back from the phone and checks SHA-256 (a bad one is deleted). Files already there with the same size are skipped. It keeps the folder layout but cannot set the phone-side timestamp. In the GUI, choose **PC to iPhone**, use **Add files…** / **Folder…**, select, then **Send N** (the folder box sets the destination on the phone; `/DCIM` is refused).
 **Limit:** files land in the phone's media storage over USB. They do **not** appear in the Photos app (Apple only allows that through its own sync), so use this to carry files, not to add to your camera roll.
 
 **Wi-Fi (no cable, no app on the phone):**
 ```powershell
 .\.venv\Scripts\python.exe -m phototransfer share D:\iPhonePhotos     # prints a link and a QR code
 ```
-Open the link on a phone on the same Wi-Fi. It shows the photos in that folder (tap one to open it; press and hold, then **Save to Photos** puts it in the Photos app). The page also has an **Upload** button that sends photos/videos from the phone (including its Photos library) to `<folder>` itself (or `--inbox`). The GUI has the same thing under **Wi-Fi share…** (shares the "Copy to" folder).
+Open the link on a phone on the same Wi-Fi. It shows the photos in that folder (tap one to open it; press and hold, then **Save to Photos** puts it in the Photos app). The page also has an **Upload** button that sends photos/videos from the phone (including its Photos library) to `<folder>` itself (or `--inbox`). The GUI has the same thing under **Wi-Fi** (shares the "Save in" folder).
 **Delete:** in Select mode a red **Delete N** button asks to confirm, then moves the ticked files (media inside the shared folder only) to the PC's Recycle Bin.
 Safety: the link contains a random token and only photos, videos and common documents (PDF, Word, Excel, PowerPoint, text, CSV, e-books such as EPUB, MOBI, AZW3, FB2, DJVU, CBZ), archives (ZIP, RAR, 7z, TAR, GZ, BZ2, XZ, ZST, ISO, DMG, EXE, MSI, APK, JAR) and audio (MP3, M4A, WAV, FLAC, OGG, WMA, AIFF, CAF, AMR, MIDI) are served or accepted, but traffic is plain HTTP, so use it on a network you trust. Windows may ask to allow Python through the firewall: choose Private networks. Uploads keep the photo's original date.
 
@@ -51,8 +51,8 @@ Then open the main `https://` link. In **Select** mode a **Save to Photos** butt
 
 Re-running the same `copy` command skips finished files and resumes interrupted ones (`*.part`).
 `--by-date` files by modified date as `YYYY/YYYY-MM/name`; a name used twice gets its device folder as a prefix.
-`gui` opens a window (tkinter, no extra dependencies): the camera roll as a grid of 200 px previews grouped by day (newest first), a Photos/Videos filter, a From/To date filter, a destination picker, Organize by date, a Parallel setting, a progress bar and Cancel. Cancel keeps the `.part` file, so a re-run resumes.
-Click a photo to select it (Shift-click selects a range; click a day heading to select that whole day). Hover a photo to see its name, date and size.
+`gui` opens a window (tkinter, no extra dependencies): the camera roll as a grid of 200 px previews grouped by day (newest first), a kind filter (Gallery = photos and videos, the default; Music, Documents, Archives, All), a From/To date filter, a destination picker, Organize by date, a Parallel setting, a progress bar and Cancel. Cancel keeps the `.part` file, so a re-run resumes.
+Click a photo to select it (Shift-click selects a range; click a day heading to select that whole day; drag a box to select what it touches, and drag a box over selected photos to unselect them). **How to use** (top right) opens an English/Vietnamese manual with these tips and the accepted file types; the language box next to it switches the window language. Hover a photo to see its name, date and size.
 Previews load only for the photos on screen and are cached in `~/.phototransfer/thumbs`, so reopening is fast. HEIC needs `pillow-heif` (installed with the app). Videos and very large originals (>40 MB) show a grey box with the file type instead of a preview.
 `--source-dir <folder>` swaps the phone for a local folder, so you can try everything without a device.
 
