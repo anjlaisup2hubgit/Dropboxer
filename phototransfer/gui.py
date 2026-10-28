@@ -335,7 +335,9 @@ class App:
             ttk.Radiobutton(bar, text=T(name), value=name, variable=self.kind, style="Seg.Toolbutton",
                             command=self._fill).pack(side="left", padx=(0, 2))
         self.all_ticked = tk.BooleanVar(value=False)
-        ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all).pack(side="left", padx=(16, 0))
+        self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
+        self.select_all_cb.pack(side="left", padx=(16, 0))
+        self.deselect_btn = ttk.Button(bar, text=T("Deselect all"), command=self.clear_selection)  # shown while something is selected
         self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
         self.connect_btn = ttk.Button(bar, text=T("Reload"), command=self.connect)  # iPhone to PC, once files are listed
         self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi"), command=self.wifi_share)
@@ -518,7 +520,13 @@ class App:
             self.hits.append((x0, y0, x0 + THUMB, y0 + THUMB, "cell", f))
             self.visible.append(f)
         if self.band:  # the box being dragged
-            c.create_rectangle(*self.band, outline=GREEN, fill=GREEN, stipple="gray12", width=1)
+            l, t, rt, b = self.band
+            c.create_rectangle(l, t, rt, b, outline=GREEN, fill=GREEN, stipple="gray12", width=1)
+            w, h, gap = rt - l, b - t, 10
+            for k in range(-int(h) // gap * gap, int(w), gap):  # diagonal stripes, clipped to the box
+                t0, t1 = max(0, -k), min(h, w - k)
+                if t0 < t1:
+                    c.create_line(l + k + t0, t + t0, l + k + t1, t + t1, fill=GREEN)
         self._load_visible()
 
     def _hit(self, e: tk.Event) -> tuple | None:
@@ -694,6 +702,10 @@ class App:
     def _update_count(self) -> None:
         sel = self.selected_files()
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
+        if sel:
+            self.deselect_btn.pack(side="left", padx=(10, 0), after=self.select_all_cb)
+        else:
+            self.deselect_btn.pack_forget()
         self.count.config(text=f"{T('{n} selected', n=len(sel))}  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
 

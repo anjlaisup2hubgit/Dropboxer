@@ -27,6 +27,7 @@ VI = {
     "Videos": "Video",
     "Music": "Nhạc",
     "Select all": "Chọn tất cả",
+    "Deselect all": "Bỏ chọn tất cả",
     "Reload": "Tải lại",
     "Reconnect": "Kết nối lại",
     "Wi-Fi": "Wi-Fi",
