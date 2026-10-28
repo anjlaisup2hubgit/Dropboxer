@@ -71,6 +71,12 @@ MANUAL = [
     ("p", "3. Scan the code with the phone's camera and open the link in Safari."),
     ("p", "4. First time only: if the window shows a \"First time, trust\" link, open it on the phone first."),
     ("p", "5. Choose files on the page. The Safari page must stay open and in front while it uploads."),
+    ("p", "With Tailscale (no Wi-Fi, no cable):"),
+    ("p", "1. Install Tailscale on the PC and on the iPhone, and sign in to the same account on both."),
+    ("p", "2. Turn Tailscale on for both; the PC must stay on."),
+    ("p", "3. Click Wi-Fi above the list on the PC."),
+    ("p", "4. Copy the link in the Away from home box and open it in Safari on the iPhone (type or send it to yourself)."),
+    ("p", "5. Choose files on the page. Keep Safari open and in front while it uploads. Save to Photos is not available on this link; use Select and ZIP."),
     ("h", "Accepted file types"),
     ("p", "Anything else (for example .bin or .dll) is not accepted by the Wi-Fi page. Installers are only stored, never run. Kindle and other e-book formats need a reader app on the phone."),
 ]

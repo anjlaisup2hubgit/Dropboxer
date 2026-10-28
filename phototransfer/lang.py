@@ -127,6 +127,12 @@ VI = {
     "3. Scan the code with the phone's camera and open the link in Safari.": "3. Quét mã bằng camera điện thoại và mở liên kết trong Safari.",
     "4. First time only: if the window shows a \"First time, trust\" link, open it on the phone first.": "4. Chỉ lần đầu: nếu cửa sổ hiện liên kết \"First time, trust\", hãy mở nó trên điện thoại trước.",
     "5. Choose files on the page. The Safari page must stay open and in front while it uploads.": "5. Chọn tệp trên trang. Trang Safari phải luôn mở và ở phía trước trong lúc tải lên.",
+    "With Tailscale (no Wi-Fi, no cable):": "Bằng Tailscale (không Wi-Fi, không cáp):",
+    "1. Install Tailscale on the PC and on the iPhone, and sign in to the same account on both.": "1. Cài Tailscale trên máy tính và iPhone, đăng nhập cùng một tài khoản trên cả hai.",
+    "2. Turn Tailscale on for both; the PC must stay on.": "2. Bật Tailscale trên cả hai; máy tính phải luôn bật.",
+    "3. Click Wi-Fi above the list on the PC.": "3. Bấm Wi-Fi phía trên danh sách trên máy tính.",
+    "4. Copy the link in the Away from home box and open it in Safari on the iPhone (type or send it to yourself).": "4. Chép liên kết trong ô Khi ở xa nhà và mở nó trong Safari trên iPhone (gõ lại hoặc gửi cho chính mình).",
+    "5. Choose files on the page. Keep Safari open and in front while it uploads. Save to Photos is not available on this link; use Select and ZIP.": "5. Chọn tệp trên trang. Giữ Safari mở và ở phía trước trong lúc tải lên. Liên kết này không có nút Lưu vào Ảnh; hãy dùng Chọn và ZIP.",
     "Accepted file types": "Các loại tệp được chấp nhận",
     "Anything else (for example .bin or .dll) is not accepted by the Wi-Fi page. Installers are only stored, never run. Kindle and other e-book formats need a reader app on the phone.": "Các loại khác (ví dụ .bin hoặc .dll) không được trang Wi-Fi chấp nhận. Trình cài đặt chỉ được lưu, không bao giờ được chạy. Kindle và các định dạng sách điện tử khác cần ứng dụng đọc trên điện thoại.",
 }
