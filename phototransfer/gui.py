@@ -33,7 +33,7 @@ AUDIO = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".wma", ".web
          ".aiff", ".aif", ".caf", ".amr", ".mid", ".midi"}  # .webm: YouTube audio downloads
 DOCS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".csv", ".md", ".odt", ".ods", ".odp",
         ".pages", ".numbers", ".key", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr"}
-ARCHIVES = {".zip", ".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".lz4", ".tbz2", ".txz", ".cab", ".iso", ".dmg"}
+ARCHIVES = {".zip", ".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".lz4", ".tbz2", ".txz", ".cab", ".iso", ".dmg", ".exe", ".msi", ".apk", ".jar"}
 KINDS = {
     "All": None,
     "Photos": {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff", ".webp"},
