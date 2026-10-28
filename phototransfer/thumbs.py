@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 
 from .sources.base import RemoteFile, Source
 
-THUMB = 100
+THUMB = 72
 MAX_BYTES = 40 * 1024 * 1024  # skip huge originals (ProRAW etc.); the row keeps its placeholder
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".gif", ".tiff", ".dng", ".webp"}
 VIDEO_EXTS = {".mov", ".mp4", ".m4v"}

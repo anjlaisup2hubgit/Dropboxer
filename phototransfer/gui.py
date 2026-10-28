@@ -20,7 +20,7 @@ from .thumbs import THUMB, audio_to_wav, is_audio, is_image, is_video, is_wav, l
 
 SETTINGS_FILE = Path.home() / ".phototransfer" / "settings.json"
 POLL_MS = 100
-PAD = 2  # half the gap between tiles; the web page uses a 4 px gap
+PAD = 0  # half the gap between tiles; the web page uses a 4 px gap
 CELL = THUMB + 2 * PAD  # one grid cell: the thumbnail box plus padding
 HEAD_H = 34  # height of a day heading
 SCROLL_UNIT = 40  # pixels per scroll unit
@@ -278,7 +278,6 @@ class App:
         head.pack(fill="x")
         tk.Frame(self.root, height=1, background=LINE).pack(fill="x")  # thin line under the header
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
-        ttk.Button(head, text="Settings", style="Link.TButton", command=self.toggle_settings).pack(side="right", padx=(0, 8))
 
         self.top = top = ttk.Frame(self.root, padding=(16, 12, 16, 6))
         top.pack(fill="x")
@@ -287,40 +286,31 @@ class App:
         for text, value in (("PC to iPhone", "send"), ("iPhone to PC", "receive")):
             ttk.Radiobutton(seg, text=text, value=value, variable=self.mode, style="Seg.Toolbutton",
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
-        self.connect_btn = ttk.Button(top, text="Connect iPhone", style="Primary.TButton", command=self.connect)
+        self.connect_btn = ttk.Button(top, text="Connect", style="Primary.TButton", command=self.connect)
         self.connect_btn.pack(side="left", padx=(16, 0))
         # iPhone to PC: Wi-Fi is the easy way, so it sits right next to the mode switch.
-        self.wifi_btn = ttk.Button(top, text="Send over Wi-Fi", style="Primary.TButton", command=self.wifi_share)
+        self.wifi_btn = ttk.Button(top, text="Wi-Fi", style="Primary.TButton", command=self.wifi_share)
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
 
         # Filters and select-all sit in view, because they are used all the time.
         bar = ttk.Frame(self.root, padding=(16, 0, 16, 2))
         bar.pack(fill="x")
-        ttk.Label(bar, text="Pick", font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 10))
         self.kind = tk.StringVar(value="All")
         for name in KINDS:
             ttk.Radiobutton(bar, text=name, value=name, variable=self.kind, style="Seg.Toolbutton",
                             command=self._fill).pack(side="left", padx=(0, 2))
         self.all_ticked = tk.BooleanVar(value=False)
-        ttk.Checkbutton(bar, text="Select all", variable=self.all_ticked, command=self._toggle_all).pack(side="left", padx=(16, 0))
+        ttk.Checkbutton(bar, text="All", variable=self.all_ticked, command=self._toggle_all).pack(side="left", padx=(16, 0))
         self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
         ttk.Button(bar, text="Reset", command=self.clear_dates).pack(side="right")
-        for var, text, hint in ((self.date_to, "to", "Any date"), (self.date_from, "Taken from", "Any date")):
+        for var, text, hint in ((self.date_to, "to", "Any date"), (self.date_from, "From", "Any date")):
             DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
             ttk.Label(bar, text=text, style="Muted.TLabel").pack(side="right", padx=(10, 0))
-        ttk.Label(self.root, style="Muted.TLabel", padding=(16, 2, 16, 6),
-                  text="Click to select  ·  Shift-click for a range  ·  double-click to enlarge").pack(fill="x")
+        tk.Frame(self.root, height=6).pack()
 
-        # Everything else lives in Settings, which starts hidden.
-        self.settings = ttk.Frame(self.root, style="Card.TFrame", padding=14)
-        row = ttk.Frame(self.settings, style="Panel.TFrame")
-        row.pack(fill="x", pady=(10, 0))
-        self.by_date = tk.BooleanVar(value=True)
-        ttk.Checkbutton(row, text="Sort into folders by date", variable=self.by_date, style="Panel.TCheckbutton").pack(side="left")
-        ttk.Label(row, text="Copy at once", style="PanelMuted.TLabel").pack(side="left", padx=(20, 6))
+        self.by_date = tk.BooleanVar(value=True)  # copies are always sorted into date folders
         self.jobs = tk.IntVar(value=1)
-        ttk.Spinbox(row, from_=1, to=4, width=3, textvariable=self.jobs).pack(side="left")
 
         mid = ttk.Frame(self.root, padding=(16, 0))
         mid.pack(fill="both", expand=True)
@@ -343,7 +333,7 @@ class App:
         ttk.Label(row, text="Save photos in", style="Panel.TLabel").pack(side="left")
         self.dest = tk.StringVar(value=_load_settings().get("dest") or str(Path.home() / "Pictures" / "iPhone"))
         ttk.Entry(row, textvariable=self.dest).pack(side="left", fill="x", expand=True, padx=8)
-        ttk.Button(row, text="Change folder…", command=self.browse).pack(side="left")
+        ttk.Button(row, text="Change", command=self.browse).pack(side="left")
         self.remote_row = row = ttk.Frame(panel, style="Panel.TFrame")  # PC to iPhone: where on the phone
         ttk.Label(row, text="Send to", style="Panel.TLabel").pack(side="left")
         self.send_to = tk.StringVar(value="Folder on iPhone")
@@ -358,26 +348,20 @@ class App:
         self.send_note.pack(side="left")
         row = ttk.Frame(panel, style="Panel.TFrame")
         row.pack(fill="x")
-        self.copy_btn = ttk.Button(row, text="Copy to PC", style="Primary.TButton", command=self.primary_action, state="disabled")
+        self.copy_btn = ttk.Button(row, text="Copy", style="Primary.TButton", command=self.primary_action, state="disabled")
         self.copy_btn.pack(side="left")
-        self.add_btn = ttk.Button(row, text="Add files…", command=self.choose_files)  # shown in PC to iPhone mode only
-        self.folder_btn = ttk.Button(row, text="Show a folder…", command=self.send_folder)
+        self.add_btn = ttk.Button(row, text="Files…", command=self.choose_files)  # shown in PC to iPhone mode only
+        self.folder_btn = ttk.Button(row, text="Folder…", command=self.send_folder)
         self.cancel_btn = ttk.Button(row, text="Stop", style="Danger.TButton", command=self.cancel.set, state="disabled")
         self.cancel_btn.pack(side="left", padx=8)
         self.bar = ttk.Progressbar(row, maximum=100)
         self.bar.pack(side="left", fill="x", expand=True, padx=8)
 
-        self.status = ttk.Label(self.root, text="Plug in and unlock your iPhone, then click Connect.",
+        self.status = ttk.Label(self.root, text="Unlock your iPhone and tap Trust.",
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
         # Pin the action panel and status line to the bottom so a short window shrinks the picture grid, not them.
         self.status.pack(side="bottom", fill="x", before=mid)
         panel.pack(side="bottom", fill="x", padx=16, pady=(10, 4), before=mid)
-
-    def toggle_settings(self) -> None:
-        if self.settings.winfo_manager():
-            self.settings.pack_forget()
-        else:
-            self.settings.pack(fill="x", padx=16, pady=(0, 6), after=self.top)
 
     def _mode_changed(self) -> None:
         """Switch between copying from the iPhone and sending to it."""
@@ -394,14 +378,14 @@ class App:
                 self.send_scanned = True
                 self._show_folder(Path.home() / "Pictures")
                 self._show_folder(Path.home() / "Music")
-            self.status.config(text="Pick files, then click Send." if self.all_files else "Looking for files…")
+            self.status.config(text="" if self.all_files else "Looking for files…")
         else:
             self.remote_row.pack_forget()
             self.wifi_btn.pack(side="left", padx=(8, 0), after=self.connect_btn)
             self.dest_row.pack(fill="x", pady=(0, 12), before=self.copy_btn.master)
             self.add_btn.pack_forget()
             self.folder_btn.pack_forget()
-            self.status.config(text="Pick photos, then click Copy to PC.")
+            self.status.config(text="")
         self._fill()
 
     def primary_action(self) -> None:
@@ -492,7 +476,7 @@ class App:
                 title = c.create_text(PAD + 2, y + HEAD_H // 2, anchor="w", font=("Segoe UI", 11, "bold"),
                                       fill=TEXT, text=f"{mark}{day}")
                 c.create_text(c.bbox(title)[2] + 12, y + HEAD_H // 2, anchor="w", font=("Segoe UI", 10), fill=MUTED,
-                              text=f"{len(b)} files, {_human(sum(f.size for f in b))}   (click to select the day)")
+                              text=f"{len(b)}  ·  {_human(sum(f.size for f in b))}")
                 self.hits.append((0, y, width, y + HEAD_H, "head", b))
                 continue
             if y + CELL < top or y > bottom:
@@ -658,19 +642,19 @@ class App:
     def _update_count(self) -> None:
         sel = self.selected_files()
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
-        self.count.config(text=f"{len(sel)} selected ({_human(sum(f.size for f in sel))})  ·  {len(self.shown)} shown")
+        self.count.config(text=f"{len(sel)} selected  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
 
     def _sync_buttons(self) -> None:
         n = len(self.selected_files())
         ready = bool(self.source) and not self.busy
         if self.mode.get() == "send":
-            self.copy_btn.config(text=f"Send {n} to iPhone" if n else "Choose files…",
+            self.copy_btn.config(text=f"Send {n}" if n else "Add files…",
                                  state=("normal" if ready else "disabled") if n else ("disabled" if self.busy else "normal"))
             self.add_btn.config(state="disabled" if self.busy else "normal")
         else:
-            self.copy_btn.config(text=f"Copy {n} to PC" if n else "Copy to PC", state="normal" if ready and n else "disabled")
-        self.connect_btn.config(text="Reconnect iPhone" if self.failed else "Reload photos" if self.source else "Connect iPhone")
+            self.copy_btn.config(text=f"Copy {n}" if n else "Copy", state="normal" if ready and n else "disabled")
+        self.connect_btn.config(text="Reconnect" if self.failed else "Reload" if self.source else "Connect")
         self.cancel_btn.config(state="normal" if self.busy else "disabled")
         self.connect_btn.config(state="disabled" if self.busy else "normal")
 
@@ -876,8 +860,7 @@ class App:
                     self.selected.add(str(p))
                 added += 1
         self._fill()
-        self.status.config(text=f"{added} files added, {len(self.selected_files())} ticked. "
-                                "Click a picture to tick or untick it, then click Send.")
+        self.status.config(text="")
 
     def send_selected(self) -> None:
         paths = [Path(f.path) for f in self.selected_files()]
@@ -932,7 +915,7 @@ class App:
             if self.mode.get() == "send":  # the PC to iPhone list on screen is not replaced
                 self._stash["receive"] = (ev[1], set())
                 self.busy = False
-                self.status.config(text="iPhone connected.")
+                self.status.config(text="")
                 self._sync_buttons()
                 return
             self.all_files = ev[1]
@@ -943,8 +926,8 @@ class App:
             if ev[1]:
                 lo, hi = (datetime.fromtimestamp(t(f.mtime for f in ev[1])).strftime("%Y-%m-%d") for t in (min, max))
                 span = f" from {lo} to {hi}"
-            self.status.config(text=f"{len(ev[1])} found{span}. Pick photos, then click Copy to PC."
-                               if self.mode.get() == "receive" else "iPhone connected.")
+            self.status.config(text=f"{len(ev[1])} found{span}"
+                               if self.mode.get() == "receive" else "")
             self._sync_buttons()
         elif kind == "folder":
             _, files, folder = ev
@@ -1018,7 +1001,7 @@ class App:
 def _apply_scale(scale: float) -> None:
     """Grow the grid's pixel sizes on scaled displays (call before App is built)."""
     global THUMB, PAD, CELL, HEAD_H
-    THUMB, PAD, HEAD_H = round(100 * scale), max(1, round(2 * scale)), round(34 * scale)
+    THUMB, PAD, HEAD_H = round(72 * scale), 0, round(30 * scale)
     CELL = THUMB + 2 * PAD
 
 
