@@ -44,9 +44,10 @@ SEND_TO = {
     "Documents by Readdle": "com.readdle.ReaddleDocsIPad",
 }
 APP_NAME = "Dropboxer"
-# White, thin pale lines, one muted sage accent.
-BG, HEAD, PANEL, SOFT, LINE = "#ffffff", "#f5f6f2", "#ffffff", "#f4f5f1", "#e1e4dc"
-TEXT, MUTED, GREEN, GREEN_DARK, RED = "#2b312a", "#737a70", "#6b8a5e", "#56734a", "#b5574d"
+# Warm map-paper background, thin lines, one grass-green accent.
+PAPER = "#f8f6ee"  # inputs, buttons and pop-ups: a touch lighter than the window
+BG, HEAD, PANEL, SOFT, LINE = "#f1eee4", "#e8e5d8", PAPER, "#e6e4d7", "#d3d0bf"
+TEXT, MUTED, GREEN, GREEN_DARK, RED = "#2b3226", "#6c7262", "#6a9444", "#527a32", "#b5574d"
 
 
 def _load_settings() -> dict:
@@ -95,7 +96,7 @@ class DateField(ttk.Frame):
         self.pop = pop = tk.Toplevel(self)
         pop.overrideredirect(True)
         pop.configure(background=LINE, padx=1, pady=1)
-        self.body = tk.Frame(pop, background="white", padx=10, pady=8)
+        self.body = tk.Frame(pop, background=PAPER, padx=10, pady=8)
         self.body.pack()
         self._draw()
         pop.update_idletasks()
@@ -132,39 +133,39 @@ class DateField(ttk.Frame):
         for w in self.body.winfo_children():
             w.destroy()
         font = ("Segoe UI", 10)
-        head = tk.Frame(self.body, background="white")
+        head = tk.Frame(self.body, background=PAPER)
         head.pack(fill="x", pady=(0, 6))
-        tk.Label(head, text=datetime(self.year, self.month, 1).strftime("%B %Y") if language() == "en" else T("Month {m} {y}", m=self.month, y=self.year), background="white", foreground=TEXT,
+        tk.Label(head, text=datetime(self.year, self.month, 1).strftime("%B %Y") if language() == "en" else T("Month {m} {y}", m=self.month, y=self.year), background=PAPER, foreground=TEXT,
                  font=("Segoe UI", 10, "bold")).pack(side="left")
         for arrow, step in (("↓", 1), ("↑", -1)):
-            b = tk.Label(head, text=arrow, background="white", foreground=TEXT, font=("Segoe UI", 13), cursor="hand2", padx=8)
+            b = tk.Label(head, text=arrow, background=PAPER, foreground=TEXT, font=("Segoe UI", 13), cursor="hand2", padx=8)
             b.pack(side="right")
             b.bind("<Button-1>", lambda _e, s=step: self._shift(s))
-        grid = tk.Frame(self.body, background="white")
+        grid = tk.Frame(self.body, background=PAPER)
         grid.pack()
         for c, name in enumerate(("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")):
-            tk.Label(grid, text=T(name), width=4, background="white", foreground=TEXT, font=("Segoe UI", 10, "bold")).grid(row=0, column=c)
+            tk.Label(grid, text=T(name), width=4, background=PAPER, foreground=TEXT, font=("Segoe UI", 10, "bold")).grid(row=0, column=c)
         today, chosen = datetime.now().date(), self.var.get()
         for i, d in enumerate(calendar.Calendar(0).itermonthdates(self.year, self.month)):
             inside, sel = d.month == self.month, d.isoformat() == chosen
             cell = tk.Label(grid, text=str(d.day), width=4, font=font, cursor="hand2",
-                            background=GREEN if sel else "white", foreground="white" if sel else TEXT if inside else "#b3baac",
+                            background=GREEN if sel else PAPER, foreground="white" if sel else TEXT if inside else "#aeb2a2",
                             highlightthickness=1, highlightbackground=GREEN_DARK if d == today and not sel else cell_bg(sel))
             cell.grid(row=1 + i // 7, column=i % 7, pady=1)
             cell.bind("<Button-1>", lambda _e, v=d.isoformat(): self._pick(v))
             if not sel:
                 cell.bind("<Enter>", lambda _e, w=cell: w.config(background=SOFT))
-                cell.bind("<Leave>", lambda _e, w=cell: w.config(background="white"))
-        foot = tk.Frame(self.body, background="white")
+                cell.bind("<Leave>", lambda _e, w=cell: w.config(background=PAPER))
+        foot = tk.Frame(self.body, background=PAPER)
         foot.pack(fill="x", pady=(8, 0))
         for text, side, value in (("Clear", "left", ""), ("Today", "right", today.isoformat())):
-            b = tk.Label(foot, text=T(text), background="white", foreground=GREEN_DARK, font=font, cursor="hand2")
+            b = tk.Label(foot, text=T(text), background=PAPER, foreground=GREEN_DARK, font=font, cursor="hand2")
             b.pack(side=side)
             b.bind("<Button-1>", lambda _e, v=value: self._pick(v))
 
 
 def cell_bg(selected: bool) -> str:
-    return GREEN if selected else "white"
+    return GREEN if selected else PAPER
 
 
 class App:
@@ -240,7 +241,7 @@ class App:
             s.configure(f"{name}.TLabel", background=bg)
             s.configure(f"{name}.TCheckbutton", background=bg, indicatorforeground="white")
             s.map(f"{name}.TCheckbutton", background=[("active", bg)],
-                  indicatorbackground=[("selected", GREEN), ("!selected", "white")])
+                  indicatorbackground=[("selected", GREEN), ("!selected", PAPER)])
         s.configure("Card.TFrame", background=PANEL, bordercolor=LINE, borderwidth=1, relief="solid")
         s.configure("Link.TButton", background=HEAD, foreground=MUTED, borderwidth=0, relief="flat", bordercolor=HEAD,
                     lightcolor=HEAD, darkcolor=HEAD)
@@ -250,31 +251,31 @@ class App:
         s.configure("Title.TLabel", background=HEAD, foreground=GREEN_DARK, font=("Segoe UI", 17, "bold"))
         s.configure("Sub.TLabel", background=HEAD, foreground=MUTED)
         # Outlined buttons with a thin line; the main action is solid green.
-        s.configure("TButton", background="white", foreground=TEXT, bordercolor=LINE, lightcolor="white",
-                    darkcolor="white", borderwidth=1, padding=(14, 6), relief="solid")
-        s.map("TButton", background=[("disabled", "#fafbf8"), ("active", SOFT)], foreground=[("disabled", "#b3baac"), ("active", GREEN_DARK)],
+        s.configure("TButton", background=PAPER, foreground=TEXT, bordercolor=LINE, lightcolor=PAPER,
+                    darkcolor=PAPER, borderwidth=1, padding=(14, 6), relief="solid")
+        s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#aeb2a2"), ("active", GREEN_DARK)],
               bordercolor=[("disabled", LINE), ("active", GREEN)])
-        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#c9d3c4", "white", True),
-                                                ("Danger", "white", "#f9f1f0", "white", RED, False)):
+        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#c8d5b6", "white", True),
+                                                ("Danger", PAPER, "#f3e6e0", PAPER, RED, False)):
             s.configure(f"{name}.TButton", background=bg, foreground=fg, font=("Segoe UI", 10, "bold"),
                         bordercolor=bg if fill else "#e3c4c0", lightcolor=bg, darkcolor=bg)
             s.map(f"{name}.TButton", background=[("disabled", off), ("active", hover)],
                   foreground=[("disabled", "white" if fill else "#e3c3bf")],
                   bordercolor=[("disabled", off if fill else LINE), ("active", hover if fill else RED)])
-        s.configure("Seg.Toolbutton", background="white", foreground=TEXT, bordercolor=LINE,
-                    lightcolor="white", darkcolor="white", padding=(14, 6), borderwidth=1, relief="solid")
+        s.configure("Seg.Toolbutton", background=PAPER, foreground=TEXT, bordercolor=LINE,
+                    lightcolor=PAPER, darkcolor=PAPER, padding=(14, 6), borderwidth=1, relief="solid")
         s.map("Seg.Toolbutton", background=[("selected", GREEN), ("active", SOFT)],
               foreground=[("selected", "white")], bordercolor=[("selected", GREEN), ("active", GREEN)])
-        s.configure("TEntry", fieldbackground="white", foreground=TEXT, insertcolor=TEXT, padding=6)
+        s.configure("TEntry", fieldbackground=PAPER, foreground=TEXT, insertcolor=TEXT, padding=6)
         s.map("TEntry", fieldbackground=[("readonly", SOFT)], bordercolor=[("focus", GREEN)])
-        s.configure("TSpinbox", fieldbackground="white", foreground=TEXT, insertcolor=TEXT, arrowcolor=TEXT, padding=4)
+        s.configure("TSpinbox", fieldbackground=PAPER, foreground=TEXT, insertcolor=TEXT, arrowcolor=TEXT, padding=4)
         s.configure("TCheckbutton", background=BG, foreground=TEXT, indicatorforeground="white")
-        s.map("TCheckbutton", background=[("active", BG)], indicatorbackground=[("selected", GREEN), ("!selected", "white")])
+        s.map("TCheckbutton", background=[("active", BG)], indicatorbackground=[("selected", GREEN), ("!selected", PAPER)])
         s.configure("Horizontal.TProgressbar", troughcolor=SOFT, background=GREEN, bordercolor=LINE,
                     lightcolor=GREEN, darkcolor=GREEN, thickness=8)
-        s.configure("Vertical.TScrollbar", troughcolor=BG, background="#d4d9cd", bordercolor=BG, arrowcolor=BG,
-                    lightcolor="#d4d9cd", darkcolor="#d4d9cd")
-        s.map("Vertical.TScrollbar", background=[("active", "#bfc6b6")])
+        s.configure("Vertical.TScrollbar", troughcolor=BG, background="#d3d0bf", bordercolor=BG, arrowcolor=BG,
+                    lightcolor="#d3d0bf", darkcolor="#d3d0bf")
+        s.map("Vertical.TScrollbar", background=[("active", "#c2bfae")])
 
     def _build(self) -> None:
         self._style()
@@ -629,7 +630,7 @@ class App:
         when = datetime.fromtimestamp(f.mtime).strftime("%Y-%m-%d %H:%M")
         self.tip = tk.Toplevel(self.root)
         self.tip.wm_overrideredirect(True)
-        tk.Label(self.tip, text=f"{Path(f.path).name}\n{when}\n{_human(f.size)}", justify="left", background="white",
+        tk.Label(self.tip, text=f"{Path(f.path).name}\n{when}\n{_human(f.size)}", justify="left", background=PAPER,
                  foreground=TEXT, relief="solid", borderwidth=1, padx=8, pady=5).pack()
         self.tip.wm_geometry(f"+{self.tip_xy[0] + 16}+{self.tip_xy[1] + 16}")
 

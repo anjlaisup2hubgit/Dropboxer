@@ -74,11 +74,11 @@ def _wave_png(peaks: list[float], size: int, crop: bool) -> bytes:
     from PIL import Image, ImageDraw
 
     w_px, h_px = (size, size) if crop else (size, size // 2)
-    im = Image.new("RGB", (w_px, h_px), "#f4f5f1")
+    im = Image.new("RGB", (w_px, h_px), "#e6e4d7")
     d, mid = ImageDraw.Draw(im), h_px / 2
     for x in range(w_px):
         p = peaks[x * len(peaks) // w_px] if peaks else 0
-        d.line([(x, mid - max(1, p * mid * 0.9)), (x, mid + max(1, p * mid * 0.9))], fill="#6b8a5e")
+        d.line([(x, mid - max(1, p * mid * 0.9)), (x, mid + max(1, p * mid * 0.9))], fill="#6a9444")
     out = io.BytesIO()
     im.save(out, "PNG")
     return out.getvalue()
@@ -127,10 +127,10 @@ def make_wave_thumb(path: str | Path, size: int = THUMB, crop: bool = False) -> 
                 else:
                     top = max((abs(b - 128) for b in data[::chans]), default=0) / 128
                 peaks.append(top)
-        im = Image.new("RGB", (w_px, h_px), "#f4f5f1")
+        im = Image.new("RGB", (w_px, h_px), "#e6e4d7")
         d, mid = ImageDraw.Draw(im), h_px / 2
         for x, p in enumerate(peaks):
-            d.line([(x, mid - max(1, p * mid * 0.9)), (x, mid + max(1, p * mid * 0.9))], fill="#6b8a5e")
+            d.line([(x, mid - max(1, p * mid * 0.9)), (x, mid + max(1, p * mid * 0.9))], fill="#6a9444")
         out = io.BytesIO()
         im.save(out, "PNG")
         return out.getvalue()
