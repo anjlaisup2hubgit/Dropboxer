@@ -438,6 +438,7 @@ class App:
 
     def _fill_wings(self) -> None:
         """What the wings show follows the direction: iPhone on the left and the PC folder on the right, or the other way round."""
+        self._kind_bar_state()
         if not self._wings_built:
             return
         for slot in (self.left_slot, self.right_slot):
@@ -450,8 +451,17 @@ class App:
             self._build_albums(self.left_slot)
             self._build_explorer(self.right_slot, source=False)
 
+    def _kind_bar_state(self) -> None:
+        """The type buttons are redundant while the left wing lists the same types (iPhone to PC with Wings open)."""
+        hide = self.wings and self.mode.get() != "send"
+        if hide:
+            self.kind_seg.pack_forget()
+        elif not self.kind_seg.winfo_ismapped():
+            self.kind_seg.pack(side="left", before=self.select_all_cb)
+
     def _wings_state(self) -> None:
         """The Wings button shows it is open, and the wings already hold Save in / Send to."""
+        self._kind_bar_state()
         on = self.wings
         self.wings_btn.config(style="Primary.TButton" if on else "Narrow.TButton")
         if on:  # the wings already show Save in / Send to
