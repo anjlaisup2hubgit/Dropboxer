@@ -635,7 +635,7 @@ class App:
         self._load_visible()
 
     def _pick_box(self, l: float, t: float, r: float, b: float) -> None:
-        """The look of a hovered button, for selected pictures and the box dragged over them: a light see-through blue and a thin blue outline."""
+        """The look of a hovered button, for selected pictures and the box dragged over them: a light see-through blue and a 2 px blue outline."""
         from PIL import Image, ImageTk
 
         w, h = max(1, round(r - l)), max(1, round(b - t))
@@ -643,7 +643,7 @@ class App:
             self.tints.clear()
         tint = self.tints.get((w, h)) or self.tints.setdefault((w, h), ImageTk.PhotoImage(Image.new("RGBA", (w, h), (43, 108, 176, 40))))
         self.canvas.create_image(l, t, image=tint, anchor="nw")  # see-through, so the picture shows under the tint
-        self.canvas.create_rectangle(l, t, l + w - 1, t + h - 1, outline=GREEN, width=1)
+        self.canvas.create_rectangle(l + 1, t + 1, l + w - 1, t + h - 1, outline=GREEN, width=2)  # as thick as a button's border
 
     def _kind_badge(self, x: float, y: float, kind: str, c: tk.Canvas | None = None) -> None:
         """A small dark badge (24x18, top-left at x, y) with a white symbol: video, music, document or archive."""
