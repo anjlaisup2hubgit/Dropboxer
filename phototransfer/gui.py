@@ -389,14 +389,27 @@ class App:
         lang.pack(side="right")
         lang.bind("<<ComboboxSelected>>", lambda _e: self._set_language(lang.current()))
         ttk.Button(head, text=T("How to use"), style="Narrow.TButton", width=BTN_W, command=self.show_manual).pack(side="right", padx=(0, 8))
-        ttk.Button(head, text=T("Wings"), style="Primary.TButton" if self.wings else "Narrow.TButton", width=BTN_W,
-                   command=self.toggle_wings).pack(side="right", padx=(0, 8))
+        self.wings_btn = ttk.Button(head, text=T("Wings"), width=BTN_W, command=self.toggle_wings)
+        self.wings_btn.pack(side="right", padx=(0, 8))
 
-        self.top = top = ttk.Frame(self.root, padding=(16, 12, 16, 6))
+        # The window in three parts: left wing | the usual window | right wing. The wings are 0 wide until Wings opens them.
+        shell = tk.Frame(self.root, background=BG)
+        shell.pack(fill="both", expand=True)
+        self.wing_l, self.wing_r = (tk.Frame(shell, background=BG, width=0) for _ in range(2))
+        for wing, edge in ((self.wing_l, "left"), (self.wing_r, "right")):
+            wing.pack(side=edge, fill="y")
+            wing.pack_propagate(False)
+        tk.Frame(self.wing_l, width=1, background=LINE).pack(side="right", fill="y")  # thin edges where the wings meet the window
+        tk.Frame(self.wing_r, width=1, background=LINE).pack(side="left", fill="y")
+        body = tk.Frame(shell, background=BG)
+        body.pack(side="left", fill="both", expand=True)
+        self._wings_built = False
+
+        self.top = top = ttk.Frame(body, padding=(16, 12, 16, 6))
         top.pack(fill="x")
-        seg = ttk.Frame(top)
+        self.seg = seg = ttk.Frame(top)
         seg.pack(side="left")
-        for text, value in (() if self.wings else (("PC to iPhone", "send"), ("iPhone to PC", "receive"))):  # Wings does both at once
+        for text, value in (("PC to iPhone", "send"), ("iPhone to PC", "receive")):
             ttk.Radiobutton(seg, text=T(text), value=value, variable=self.mode, style="Seg.Toolbutton",
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
         self.copy_btn = ttk.Button(top, text=T("Copy"), style="Primary.TButton", command=self.primary_action, state="disabled")
@@ -406,14 +419,6 @@ class App:
         self.cancel_btn = ttk.Button(top, text=T("Stop"), style="Danger.TButton", command=self.cancel.set)
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
-
-        body = self.root
-        if self.wings:  # albums | files | routes | PC folders
-            panes = tk.PanedWindow(self.root, orient="horizontal", sashwidth=5, background=LINE, borderwidth=0)
-            panes.pack(fill="both", expand=True)
-            side, body, routes, explorer = (tk.Frame(panes, background=BG) for _ in range(4))
-            for pane, w in ((side, 210), (body, 540), (routes, 400), (explorer, 280)):
-                panes.add(pane, width=w, minsize=150)
 
         # Where the files go.
         self.rows = ttk.Frame(body, padding=(16, 0, 16, 8))
@@ -441,8 +446,10 @@ class App:
         bar = ttk.Frame(body, padding=(16, 0, 16, 8))
         bar.pack(fill="x")
         self.kind = tk.StringVar(value="Gallery")
-        for name in () if self.wings else KINDS:  # Wings has them in the left list
-            ttk.Radiobutton(bar, text=T(name), value=name, variable=self.kind, style="Seg.Toolbutton",
+        self.kind_seg = ttk.Frame(bar)  # Wings hides these: the left wing has the same list
+        self.kind_seg.pack(side="left")
+        for name in KINDS:
+            ttk.Radiobutton(self.kind_seg, text=T(name), value=name, variable=self.kind, style="Seg.Toolbutton",
                             command=self._fill).pack(side="left", padx=(0, 2))
         self.all_ticked = tk.BooleanVar(value=False)
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
@@ -477,10 +484,9 @@ class App:
         self.status = ttk.Label(body, text="",
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
         self.status.pack(side="bottom", fill="x", before=mid)  # a short window shrinks the grid, not the status
-        if self.wings:
-            self._build_albums(side)
-            self._build_routes(routes)
-            self._build_explorer(explorer)
+        self._wings_state()
+        if self.wings:  # rebuilt while open (a language change): the wings stay out
+            self._open_wings_now()
 
     def _set_language(self, index: int) -> None:
         """Rebuild the window in the chosen language; the files, ticks, dates and folders stay as they are."""
@@ -488,17 +494,113 @@ class App:
         _save_settings({**_load_settings(), "lang": language(), "dest": self.dest.get().strip()})
         self._rebuild()
 
-    def toggle_wings(self) -> None:
-        """Wings: turn the window into the four-pane layout (and back): albums, files, routes, PC folders."""
-        _save_settings({**_load_settings(), "dest": self.dest.get().strip()})  # the rebuild reads Save in back from here
-        self.wings = not self.wings
-        if self.wings and self.mode.get() == "send":  # the file grid is the iPhone's; PC files go through the queue
-            self.mode.set("receive")
-            self._mode_changed()
+    def _wing_sizes(self) -> tuple[int, int, int]:
+        """Widths of the left wing, the right wing and the middle: full size, or less when the screen is too narrow for all three."""
         k = self.root.winfo_fpixels("1i") / 96
-        width = min(round((1560 if self.wings else 1100) * k), self.root.winfo_screenwidth() - 20)
-        self.root.geometry(f"{width}x{self.root.winfo_height()}+{max(0, (self.root.winfo_screenwidth() - width) // 2)}+{self.root.winfo_y()}")
-        self._rebuild()
+        left, right, mid = round(210 * k), round(680 * k), self.root.winfo_width()
+        avail = self.root.winfo_screenwidth() - 20
+        if mid + left + right > avail:
+            f = min(1, max(0.5, (avail - round(800 * k)) / (left + right)))
+            left, right = round(left * f), round(right * f)
+            mid = min(mid, avail - left - right)
+        return left, right, mid
+
+    def _ensure_wings(self) -> None:
+        """Fill the wings the first time they open: albums on the left, the queue and the PC folders on the right."""
+        if self._wings_built:
+            return
+        self._wings_built = True
+
+        def pane(parent: tk.Frame, build, **place) -> None:
+            f = tk.Frame(parent, background=BG, width=1, height=1)  # its size comes from the wing, not from what it holds
+            f.pack_propagate(False)
+            place["pack" if "side" in place else "grid"](f)
+            build(f)
+
+        left = tk.Frame(self.wing_l, background=BG, width=1, height=1)
+        left.pack_propagate(False)
+        left.pack(side="right", fill="both", expand=True)
+        self._build_albums(left)
+        right = tk.Frame(self.wing_r, background=BG)
+        right.pack(side="left", fill="both", expand=True)
+        right.grid_rowconfigure(0, weight=1)
+        for col, weight, build in ((0, 400, self._build_routes), (1, 280, self._build_explorer)):
+            right.grid_columnconfigure(col, weight=weight, uniform="right")
+            f = tk.Frame(right, background=BG, width=1, height=1)
+            f.pack_propagate(False)
+            f.grid(row=0, column=col, sticky="nsew")
+            build(f)
+
+    def _wings_state(self) -> None:
+        """What Wings changes in the usual window itself: one Apply changes button, no mode or file-type buttons."""
+        on = self.wings
+        self.wings_btn.config(style="Primary.TButton" if on else "Narrow.TButton")
+        if on:
+            self.seg.pack_forget()
+            self.kind_seg.pack_forget()
+        else:
+            self.seg.pack(side="left", before=self.copy_btn)
+            self.kind_seg.pack(side="left", before=self.select_all_cb)
+        self.copy_btn.pack_configure(padx=(0, 0) if on else (16, 0))
+
+    def _open_wings_now(self) -> None:
+        self._ensure_wings()
+        left, right = self._wing_w
+        self.wing_l.config(width=left)
+        self.wing_r.config(width=right)
+
+    def toggle_wings(self) -> None:
+        """Wings: the window spreads its wings (albums on the left, the queue and PC folders on the right) and folds them again."""
+        if getattr(self, "_flying", False):
+            return
+        _save_settings({**_load_settings(), "dest": self.dest.get().strip()})
+        opening = not self.wings
+        self.wings = opening
+        if opening:
+            self._ensure_wings()
+            self._mode_before = self.mode.get()
+            if self._mode_before == "send":  # the grid in the middle is the iPhone's; PC files go through the queue
+                self.mode.set("receive")
+                self._mode_changed()
+        elif getattr(self, "_mode_before", "receive") == "send":
+            self.mode.set("send")
+            self._mode_changed()
+        self._wings_state()
+        self._mode_changed(keep=True)
+        self._sync_buttons()
+        self._fly(opening)
+
+    def _fly(self, opening: bool) -> None:
+        """Animate the wings out (or in): the window grows sideways while the middle stays where it is."""
+        import re
+
+        root = self.root
+        w, h, x, y = (int(v) for v in re.match(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)", root.geometry()).groups())
+        if opening:
+            left, right, mid1 = self._wing_sizes()
+            self._wing_w, self._mid_before = (left, right), w
+            mid0 = w
+        else:
+            left, right = self.wing_l.winfo_width(), self.wing_r.winfo_width()
+            mid0, mid1 = w - left - right, getattr(self, "_mid_before", w - left - right)
+        edge = x + (0 if opening else left)  # where the middle's left edge is, and stays
+        screen, self._flying, steps = root.winfo_screenwidth(), True, 16
+
+        def frame(i: int) -> None:
+            e = 1 - (1 - i / steps) ** 3  # fast at first, settling at the end, like a wing stroke
+            f = e if opening else 1 - e
+            wl, wr = round(left * f), round(right * f)
+            mid = round(mid0 + (mid1 - mid0) * e)
+            total = mid + wl + wr
+            self.wing_l.config(width=wl)
+            self.wing_r.config(width=wr)
+            root.geometry(f"{total}x{h}+{max(0, min(edge - wl, screen - total))}+{y}")
+            if i < steps:
+                root.after(18, frame, i + 1)
+            else:
+                self._flying = False
+
+        frame(0)
 
     def _rebuild(self) -> None:
         mode, kind = self.mode.get(), self.kind.get()
@@ -863,8 +965,7 @@ class App:
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
         self.count.config(text=f"{T('{n} selected', n=len(sel))}  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
-        if self.wings:
-            self._update_albums()
+        self._update_albums()
 
     def _sync_buttons(self) -> None:
         n = len(self.selected_files())
