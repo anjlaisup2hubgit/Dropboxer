@@ -1015,12 +1015,15 @@ class App:
         win = tk.Toplevel(self.root)
         win.title(T("How to use"))
         win.configure(background=BG)
-        win.geometry("640x560")
+        w, h = 860, 760
+        sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+        w, h = min(w, sw - 80), min(h, sh - 120)
+        win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 20}")  # centered on the screen
         win.transient(self.root)
-        text = tk.Text(win, wrap="word", background=PAPER, foreground=TEXT, relief="flat", padx=18, pady=14,
-                       font=("Segoe UI", 10), spacing1=2, spacing3=3, highlightthickness=1, highlightbackground=LINE)
-        text.tag_configure("h", font=("Segoe UI", 12, "bold"), foreground=GREEN_DARK, spacing1=12, spacing3=4)
-        text.tag_configure("s", font=("Segoe UI", 10, "bold"), spacing1=8)
+        text = tk.Text(win, wrap="word", background=PAPER, foreground=TEXT, relief="flat", padx=28, pady=22,
+                       font=("Segoe UI", 13), spacing1=4, spacing3=6, highlightthickness=1, highlightbackground=LINE)
+        text.tag_configure("h", font=("Segoe UI", 16, "bold"), foreground=GREEN_DARK, spacing1=18, spacing3=6)
+        text.tag_configure("s", font=("Segoe UI", 13, "bold"), spacing1=12)
         scroll = ttk.Scrollbar(win, command=text.yview)
         text.config(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
