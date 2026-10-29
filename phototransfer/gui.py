@@ -28,8 +28,7 @@ SCROLL_UNIT = 40  # pixels per scroll unit
 WHEEL_UNITS = 3  # units per mouse wheel notch (about 120 px)
 TIP_DELAY_MS = 350
 PREVIEW = 900  # longest side of the picture opened by a double-click
-PREVIEW_SIZES = (400, 600, 900, 1200, 1600, 2000, 3000)  # choices in the preview size dropdown
-MIN_PREVIEW, MAX_PREVIEW_PX = 200, 3000
+TILE_SIZES = (48, 72, 96, 128, 160, 200, 256)  # choices in the size dropdown: the side of a file tile, before display scaling
 TEXT_BYTES = 200 * 1024  # how much of a text file the preview reads
 ZIP_BYTES = 50 * 1024 * 1024  # biggest zip whose file list is read off the phone
 MAX_PREVIEW = 3000  # most files listed from one folder in PC to iPhone
@@ -76,7 +75,7 @@ MANUAL = [
     ("p", "Click a day's heading to select all of that day; click it again to unselect the whole day."),
     ("p", "Hold the left button and drag a box to select every picture it touches. Drag a box over pictures that are already selected (or start it on one) to unselect them."),
     ("p", "Drag past the top or bottom of the list to scroll while boxing."),
-    ("p", "Double-click or right-click any file to preview it (pictures, videos, music, text, zip contents or its details); right-click also has Open file location for files on this PC. The size dropdown beside the language box sets how big the preview is."),
+    ("p", "Double-click or right-click any file to preview it (pictures, videos, music, text, zip contents or its details); right-click also has Open file location for files on this PC. The size dropdown beside the language box sets how big the file tiles are."),
     ("p", "Ctrl+A selects all shown files, Esc clears the selection. Deselect all (next to Send) clears it too."),
     ("p", "The Delete key removes the selected files: from the iPhone for good on the iPhone to PC tab, or to the Recycle Bin on the PC to iPhone tab. It always asks first."),
     ("h", "File types"),
@@ -297,12 +296,12 @@ class App:
         self.banner.pack(fill="x")
         self.banner.bind("<Configure>", lambda _e: self._zigzag())
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
-        # Packed first so it sits at the far right, beside the language box: the longest side of the preview.
-        if not hasattr(self, "preview_var"):
-            self.preview_var = tk.StringVar(value=f"{_load_settings().get('preview', PREVIEW)} px")
-        size_box = ttk.Combobox(head, values=[f"{n} px" for n in PREVIEW_SIZES], state="readonly", width=8, textvariable=self.preview_var)
+        # Packed first so it sits at the far right, beside the language box: how big the file tiles are.
+        if not hasattr(self, "tile_var"):
+            self.tile_var = tk.StringVar(value=f"{_saved_tile()} px")
+        size_box = ttk.Combobox(head, values=[f"{n} px" for n in TILE_SIZES], state="readonly", width=8, textvariable=self.tile_var)
         size_box.pack(side="right", padx=(8, 0))
-        size_box.bind("<<ComboboxSelected>>", lambda _e: self._save_preview_size())
+        size_box.bind("<<ComboboxSelected>>", lambda _e: self._set_tile_size())
         lang = ttk.Combobox(head, values=list(LANGUAGES.values()), state="readonly", width=12)
         lang.set(LANGUAGES[language()])
         lang.pack(side="right")
@@ -796,19 +795,18 @@ class App:
             ttk.Button(bar, text="■ Stop", command=lambda: winsound.PlaySound(None, 0)).pack(side="left", padx=4)
             win.bind("<Destroy>", lambda e: winsound.PlaySound(None, 0) if e.widget is win else None)
         win.focus_set()
-        asyncio.run_coroutine_threadsafe(self._preview(f, local, win, label, self._preview_px()), self.loop)
+        asyncio.run_coroutine_threadsafe(self._preview(f, local, win, label, PREVIEW), self.loop)
 
-    def _preview_px(self) -> int:
-        """The longest side typed in the size box, kept between the limits."""
-        try:
-            n = int(self.preview_var.get().split()[0])
-        except (ValueError, IndexError):
-            n = PREVIEW
-        return max(MIN_PREVIEW, min(MAX_PREVIEW_PX, n))
-
-    def _save_preview_size(self) -> None:
-        self.preview_var.set(f"{self._preview_px()} px")
-        _save_settings({**_load_settings(), "preview": self._preview_px()})
+    def _set_tile_size(self) -> None:
+        """Redraw the file grid with the chosen tile size; the old thumbnails are the wrong size, so they are asked for again."""
+        px = int(self.tile_var.get().split()[0])
+        _save_settings({**_load_settings(), "tile": px})
+        _set_tile(px)
+        self.thumb_by_path.clear()
+        self.thumb_asked.clear()
+        self.thumb_fails.clear()
+        self.tints.clear()
+        self._relayout()
 
     async def _preview(self, f: RemoteFile, local: bool, win: tk.Toplevel, label: tk.Label, px: int) -> None:
         try:
@@ -1545,11 +1543,26 @@ def _cap(text: str) -> str:
     return text[:1].upper() + text[1:]
 
 
+SCALE = 1.0
+
+
+def _saved_tile() -> int:
+    tile = _load_settings().get("tile", 72)
+    return tile if tile in TILE_SIZES else 72
+
+
+def _set_tile(px: int) -> None:
+    """Set the side of a file tile (px before display scaling) and the cell around it."""
+    global THUMB, CELL
+    THUMB = round(px * SCALE)
+    CELL = THUMB + 2 * PAD
+
+
 def _apply_scale(scale: float) -> None:
     """Grow the grid's pixel sizes on scaled displays (call before App is built)."""
-    global THUMB, PAD, CELL, HEAD_H
-    THUMB, PAD, HEAD_H = round(72 * scale), round(2 * scale), round(30 * scale)  # PAD: a gap between tiles, so neighbours stay apart
-    CELL = THUMB + 2 * PAD
+    global SCALE, PAD, HEAD_H
+    SCALE, PAD, HEAD_H = scale, round(2 * scale), round(30 * scale)  # PAD: a gap between tiles, so neighbours stay apart
+    _set_tile(_saved_tile())
 
 
 def run(source_dir: str | None = None, udid: str | None = None) -> int:
