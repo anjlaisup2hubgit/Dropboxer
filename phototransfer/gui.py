@@ -17,7 +17,7 @@ from .cli import DEFAULT_ROOT, DEFAULT_UPLOAD_ROOT, _human
 from .engine import copy_files, upload_files
 from .sources.base import RemoteFile, Source
 from .lang import LANGUAGES, T, language, set_language
-from .thumbs import THUMB, audio_to_wav, is_audio, is_image, is_video, is_wav, load_thumb, local_thumb
+from .thumbs import THUMB, ZIP_EXTS, audio_to_wav, is_audio, is_image, is_video, is_wav, load_thumb, local_thumb
 
 SETTINGS_FILE = Path.home() / ".phototransfer" / "settings.json"
 POLL_MS = 100
@@ -38,6 +38,7 @@ DOCS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf
         ".pages", ".numbers", ".key", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr"}
 ARCHIVES = {".zip", ".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".lz4", ".tbz2", ".txz", ".cab", ".iso", ".dmg", ".exe", ".msi", ".apk", ".jar"}
 PHOTOS = {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff", ".webp"}
+ZIPPED = ZIP_EXTS - DOCS  # zip, jar, apk: their tile shows the file list
 TITLE_CHARS = 24  # a tile without a picture shows at most this many characters of its title
 VIDEOS = {".mov", ".mp4", ".m4v"}
 KINDS = {
@@ -647,7 +648,7 @@ class App:
             img = self.thumb_by_path.get(f.path)
             if img:
                 c.create_image(x0 + THUMB // 2, y0 + THUMB // 2, image=img)
-            elif not (is_image(f.path) or is_video(f.path) or is_audio(f.path)):  # any other file shows the start of its title, not a picture
+            elif not (is_image(f.path) or is_video(f.path) or is_audio(f.path) or Path(f.path).suffix.lower() in ZIPPED):  # any other file shows the start of its title, not a picture
                 stem = Path(f.path).stem
                 title = stem if len(stem) <= TITLE_CHARS else stem[:TITLE_CHARS - 1] + "…"
                 c.create_text(x0 + THUMB // 2, y0 + THUMB // 2, fill=TEXT, font=("Segoe UI", max(8, THUMB // 10)),
@@ -902,7 +903,7 @@ class App:
         if self.busy or not (local or self.source):
             return
         for f in self.visible:
-            if f.path not in self.thumb_asked and (is_image(f.path) or is_video(f.path) or (local and is_audio(f.path))):
+            if f.path not in self.thumb_asked and (is_image(f.path) or is_video(f.path) or Path(f.path).suffix.lower() in ZIPPED or (local and is_audio(f.path))):
                 self.thumb_asked.add(f.path)
                 asyncio.run_coroutine_threadsafe(self._thumb(f, local), self.loop)
 
