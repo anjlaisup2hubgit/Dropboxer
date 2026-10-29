@@ -343,7 +343,7 @@ class App:
         pick.pack(side="left", padx=8)
         pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
         self.remote = tk.StringVar(value=DEFAULT_UPLOAD_ROOT)
-        self.remote_label = ttk.Label(row, text=_cap(T("name")))
+        self.remote_label = ttk.Label(row, text=_cap(T("folder/album name")))
         self.remote_label.pack(side="left")
         ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
         self.send_note = ttk.Label(row, text="", style="Muted.TLabel", foreground=MUTED)
@@ -980,7 +980,7 @@ class App:
     def _send_to_changed(self) -> None:
         app = SEND_TO[self.send_names[self.send_to.get()]]
         self.remote.set(DEFAULT_UPLOAD_ROOT if app is None else "")
-        self.remote_label.config(text=_cap(T("name")))
+        self.remote_label.config(text=_cap(T("folder/album name")))
         self.send_note.config(text="" if app is None else
                               T("Find them in {app}.", app=self.send_to.get().split(" (")[0]),
                               foreground=MUTED)
@@ -1142,10 +1142,11 @@ class App:
 
         box.bind("<<ListboxSelect>>", chosen)
         row = tk.Frame(parent, background=BG)
-        row.pack(fill="x", padx=14, pady=(10, 0))
-        self.wing_label = ttk.Label(row, text=self.remote_label.cget("text"))
+        row.pack(fill="x", padx=14, pady=(24, 0))
+        self.wing_label = tk.Label(row, text=self.remote_label.cget("text"), background=BG, foreground=MUTED,
+                                   font=("Segoe UI", 9, "bold"), anchor="w")
         self.wing_label.pack(anchor="w")
-        ttk.Entry(row, textvariable=self.remote).pack(fill="x", pady=(2, 8))
+        ttk.Entry(row, textvariable=self.remote).pack(fill="x", pady=(6, 8))
         self.wing_note = ttk.Label(row, text=self.send_note.cget("text"), style="Muted.TLabel", foreground=str(self.send_note.cget("foreground")))
         self.wing_note.pack(anchor="w")
 

@@ -16,7 +16,7 @@ VI = {
     "Save in": "Lưu vào",
     "Change": "Đổi",
     "Send to": "Gửi đến",
-    "name": "tên",
+    "folder/album name": "tên thư mục/album",
     "Folder on iPhone": "Thư mục trên iPhone",
     "VLC (music player)": "VLC (nghe nhạc)",
     "Find them in {app}.": "Tìm trong {app}.",
