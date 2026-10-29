@@ -28,6 +28,9 @@ SCROLL_UNIT = 40  # pixels per scroll unit
 WHEEL_UNITS = 3  # units per mouse wheel notch (about 120 px)
 TIP_DELAY_MS = 350
 PREVIEW = 900  # longest side of the picture opened by a double-click
+MIN_PREVIEW, MAX_PREVIEW_PX = 200, 3000  # limits of the typable preview size
+TEXT_BYTES = 200 * 1024  # how much of a text file the preview reads
+ZIP_BYTES = 50 * 1024 * 1024  # biggest zip whose file list is read off the phone
 MAX_PREVIEW = 3000  # most files listed from one folder in PC to iPhone
 AUDIO = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg", ".opus", ".wma", ".webm", ".mka",
          ".aiff", ".aif", ".caf", ".amr", ".mid", ".midi"}  # .webm: YouTube audio downloads
@@ -73,7 +76,7 @@ MANUAL = [
     ("p", "Click a day's heading to select all of that day; click it again to unselect the whole day."),
     ("p", "Hold the left button and drag a box to select every picture it touches. Drag a box over pictures that are already selected (or start it on one) to unselect them."),
     ("p", "Drag past the top or bottom of the list to scroll while boxing."),
-    ("p", "Double-click a picture to open a larger preview; photos, videos and music play there."),
+    ("p", "Double-click any file to preview it (pictures, videos, music, text, zip contents or its details). Type a number beside the language box to set the preview size."),
     ("p", "Ctrl+A selects all shown files, Esc clears the selection. Deselect all (next to Send) clears it too."),
     ("p", "The Delete key removes the selected files: from the iPhone for good on the iPhone to PC tab, or to the Recycle Bin on the PC to iPhone tab. It always asks first."),
     ("h", "File types"),
@@ -294,6 +297,16 @@ class App:
         self.banner.pack(fill="x")
         self.banner.bind("<Configure>", lambda _e: self._zigzag())
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
+        # Packed first so it sits at the far right, beside the language box: type the longest side of the preview in pixels.
+        if not hasattr(self, "preview_var"):
+            self.preview_var = tk.StringVar(value=str(_load_settings().get("preview", PREVIEW)))
+        size_box = ttk.Spinbox(head, from_=MIN_PREVIEW, to=MAX_PREVIEW_PX, increment=100, width=5, textvariable=self.preview_var)
+        size_box.pack(side="right", padx=(6, 0))
+        size_box.bind("<Return>", lambda _e: self._save_preview_size())
+        size_box.bind("<FocusOut>", lambda _e: self._save_preview_size())
+        size_box.bind("<<Increment>>", lambda _e: self.root.after_idle(self._save_preview_size))
+        size_box.bind("<<Decrement>>", lambda _e: self.root.after_idle(self._save_preview_size))
+        ttk.Label(head, text=T("Preview size"), style="Title.TLabel", font=("Segoe UI", 9)).pack(side="right", padx=(12, 0))
         lang = ttk.Combobox(head, values=list(LANGUAGES.values()), state="readonly", width=12)
         lang.set(LANGUAGES[language()])
         lang.pack(side="right")
@@ -767,17 +780,71 @@ class App:
             ttk.Button(bar, text="■ Stop", command=lambda: winsound.PlaySound(None, 0)).pack(side="left", padx=4)
             win.bind("<Destroy>", lambda e: winsound.PlaySound(None, 0) if e.widget is win else None)
         win.focus_set()
-        asyncio.run_coroutine_threadsafe(self._preview(f, local, win, label), self.loop)
+        asyncio.run_coroutine_threadsafe(self._preview(f, local, win, label, self._preview_px()), self.loop)
 
-    async def _preview(self, f: RemoteFile, local: bool, win: tk.Toplevel, label: tk.Label) -> None:
+    def _preview_px(self) -> int:
+        """The longest side typed in the size box, kept between the limits."""
+        try:
+            n = int(float(self.preview_var.get()))
+        except ValueError:
+            n = PREVIEW
+        return max(MIN_PREVIEW, min(MAX_PREVIEW_PX, n))
+
+    def _save_preview_size(self) -> None:
+        self.preview_var.set(str(self._preview_px()))
+        _save_settings({**_load_settings(), "preview": self._preview_px()})
+
+    async def _preview(self, f: RemoteFile, local: bool, win: tk.Toplevel, label: tk.Label, px: int) -> None:
         try:
             if local:
-                png = await asyncio.get_running_loop().run_in_executor(None, local_thumb, f.path, PREVIEW, False)
+                png = await asyncio.get_running_loop().run_in_executor(None, local_thumb, f.path, px, False)
             else:
-                png = await load_thumb(self.source, f, size=PREVIEW)
+                png = await load_thumb(self.source, f, size=px)
         except Exception:
             png = None
-        self.events.put(("preview", png, win, label))
+        if png:
+            self.events.put(("preview", png, win, label))
+            return
+        try:  # not a picture, video or song: show what is inside (text, zip list) or the file's details
+            text = await self._preview_text(f, local)
+        except Exception:
+            text = None
+        self.events.put(("previewtext", text, win, label, px, f))
+
+    async def _preview_text(self, f: RemoteFile, local: bool) -> str | None:
+        """The text of a text file, or the names inside a zip; None for anything else."""
+        import io
+        import zipfile
+
+        async def head(limit: int) -> bytes:
+            if local:
+                with open(f.path, "rb") as fh:
+                    return fh.read(limit)
+            buf = bytearray()
+            async for chunk in self.source.read(f.path):
+                buf += chunk
+                if len(buf) >= limit:
+                    break
+            return bytes(buf[:limit])
+
+        ext = Path(f.path).suffix.lower()
+        if ext in {".zip", ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp", ".jar", ".apk"} and f.size <= ZIP_BYTES:
+            data = await head(ZIP_BYTES)
+            try:
+                with zipfile.ZipFile(io.BytesIO(data)) as z:
+                    names = z.namelist()
+                    return "\n".join(names[:500]) + (f"\n… {len(names) - 500} more" if len(names) > 500 else "")
+            except zipfile.BadZipFile:
+                pass
+        data = await head(TEXT_BYTES)
+        if not data or b"\0" in data[:4096]:
+            return None
+        for enc in ("utf-8", "utf-16") if data[:2] in (b"\xff\xfe", b"\xfe\xff") else ("utf-8", "cp1252"):
+            try:
+                return data.decode(enc) + ("\n…" if len(data) >= TEXT_BYTES else "")
+            except UnicodeDecodeError:
+                continue
+        return None
 
     def _motion(self, e: tk.Event) -> None:
         h = self._hit(e)
@@ -1347,6 +1414,26 @@ class App:
                     label.config(image=label.image, text="", padx=0, pady=0)
                 else:
                     label.config(text=T("No preview for this file."))
+        elif kind == "previewtext":
+            _, text, win, label, px, f = ev
+            if win.winfo_exists():
+                info = f"{Path(f.path).name}\n{datetime.fromtimestamp(f.mtime).strftime('%Y-%m-%d %H:%M')}   {_human(f.size)}"
+                if not text:  # nothing readable inside: the details alone
+                    label.config(text=info, justify="left", font=("Segoe UI", 12))
+                else:
+                    label.destroy()
+                    box = tk.Frame(win, width=px, height=round(px * 0.75))
+                    box.pack(fill="both", expand=True)
+                    box.pack_propagate(False)
+                    tk.Label(box, text=info, anchor="w", background=BG, foreground=MUTED).pack(fill="x", padx=8, pady=(6, 0))
+                    bar = ttk.Scrollbar(box)
+                    bar.pack(side="right", fill="y")
+                    view = tk.Text(box, wrap="word", font=("Consolas", 10), yscrollcommand=bar.set,
+                                   borderwidth=0, background=PAPER, foreground=TEXT)
+                    view.pack(side="left", fill="both", expand=True)
+                    bar.config(command=view.yview)
+                    view.insert("1.0", text)
+                    view.config(state="disabled")
         elif kind == "thumb":
             _, path, png = ev
             img = tk.PhotoImage(data=png)
