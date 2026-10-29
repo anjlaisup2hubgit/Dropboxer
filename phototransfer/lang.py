@@ -45,7 +45,6 @@ VI = {
     "Free": "Còn trống",
     "Total": "Tổng",
     "{done} of {n} arrived": "{done}/{n} đã đến nơi",
-    "Wi-Fi share is open": "Đang chia sẻ qua Wi-Fi",
     "Show on this PC": "Hiện trên máy tính",
     "Send": "Gửi",
     "Music": "Nhạc",

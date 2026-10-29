@@ -543,6 +543,10 @@ class App:
         """The Wings button shows it is open; the left wing replaces the file-type buttons when it lists the iPhone's albums."""
         on = self.wings
         self.wings_btn.config(style="Primary.TButton" if on else "Narrow.TButton")
+        if on:  # the wings already show Save in / Send to
+            self.rows.pack_forget()
+        elif not self.rows.winfo_ismapped():
+            self.rows.pack(fill="x", after=self.top)
         if on and self.mode.get() == "receive":
             self.kind_seg.pack_forget()
         elif not self.kind_seg.winfo_ismapped():
@@ -1200,8 +1204,6 @@ class App:
         """Third pane: where every file of the current batch is leaving from and arriving at."""
         title = tk.Label(parent, text=T("Pictures"), background=GREEN, foreground="white", font=("Segoe UI", 9, "bold"), padx=8, pady=2)
         title.pack(anchor="w", padx=8, pady=8)
-        sky = tk.Canvas(parent, height=90, background=BG, highlightthickness=0)
-        sky.pack(fill="x", padx=8)
         foot = tk.Frame(parent, background=BG)
         foot.pack(side="bottom", fill="x", padx=8, pady=6)
         note = ttk.Label(foot, style="Muted.TLabel")
@@ -1217,7 +1219,6 @@ class App:
         tree.pack(fill="both", expand=True, padx=8, pady=(6, 0))
         empty = tk.Label(tree, text=T("No items to display"), background=BG, foreground=TEXT, font=("Segoe UI", 15))
         shown: dict[str, tuple] = {}  # row id -> what it shows now, so only changed rows are touched
-        tick = [0]
 
         def local_of(row: str) -> Path | None:
             """The copy on this PC that a row stands for: the saved file when receiving, the source when sending."""
@@ -1250,27 +1251,9 @@ class App:
         tree.bind("<<TreeviewSelect>>", show_detail)
         ttk.Button(foot, text=T("Show on this PC"), style="Narrow.TButton", width=BTN_W, command=reveal).pack(side="right")
 
-        def draw(moving: bool, left: str, right: str, wifi: bool) -> None:
-            sky.delete("all")
-            w = max(sky.winfo_width(), 300)
-            bw, ink = max(90, int(w * 0.3)), GREEN if moving else LINE
-            for x0, label in ((0, left or "—"), (w - bw, right or "—")):
-                sky.create_rectangle(x0 + 2, 6, x0 + bw - 2, 84, fill=PAPER, outline=ink, width=2)
-                sky.create_text(x0 + bw / 2, 45, text=label, width=bw - 14, fill=TEXT, font=("Segoe UI", 8, "bold"), justify="center")
-            y, a, b = 45, bw + 10, w - bw - 10
-            sky.create_line(a, y, b - 8, y, fill=ink, width=3)
-            sky.create_polygon(b, y, b - 14, y - 8, b - 14, y + 8, fill=ink, outline="")
-            if moving:  # dots slide along the line towards the arrival box
-                for k in range(5):
-                    x = a + (b - 14 - a) * ((tick[0] * 0.02 + k / 5) % 1)
-                    sky.create_oval(x - 4, y - 4, x + 4, y + 4, fill=GREEN_DARK, outline="")
-            elif wifi:
-                sky.create_text((a + b) / 2, y - 16, text=T("Wi-Fi share is open"), fill=MUTED, font=("Segoe UI", 8))
-
         def refresh() -> None:
             if not tree.winfo_exists():
                 return
-            tick[0] += 1
             rows = dict(self.flights)
             server = getattr(self, "_wifi_server", None)
             wifi_on = bool(server and getattr(self, "wifi_win", None) and self.wifi_win.winfo_exists())
@@ -1291,10 +1274,6 @@ class App:
                 tree.delete(rid)
                 del shown[rid]
             title.config(text=f"{T('Pictures')} ({len(rows)})")
-            left, right = self.flight_ends
-            if wifi_on and not self.flights:
-                left, right = T("Phone (Wi-Fi)"), self.dest.get().strip()
-            draw(self.busy and bool(self.flights), left, right, wifi_on)
             show_detail()
             if rows:
                 empty.place_forget()
