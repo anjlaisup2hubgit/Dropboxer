@@ -45,7 +45,6 @@ VI = {
     "Free": "Còn trống",
     "Total": "Tổng",
     "{done} of {n} arrived": "{done}/{n} đã đến nơi",
-    "Show on this PC": "Hiện trên máy tính",
     "Send": "Gửi",
     "Music": "Nhạc",
     "Documents": "Tài liệu",

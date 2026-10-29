@@ -1220,36 +1220,12 @@ class App:
         empty = tk.Label(tree, text=T("No items to display"), background=BG, foreground=TEXT, font=("Segoe UI", 15))
         shown: dict[str, tuple] = {}  # row id -> what it shows now, so only changed rows are touched
 
-        def local_of(row: str) -> Path | None:
-            """The copy on this PC that a row stands for: the saved file when receiving, the source when sending."""
-            if row.startswith("wifi:"):
-                return Path(self.dest.get().strip()) / row[5:]
-            f = self.flights.get(row)
-            return Path(f[1] if self.flight_ends[0] == "iPhone" else f[0]) if f else None
-
-        def reveal(_e=None) -> None:
-            sel = tree.selection()
-            target = local_of(sel[0]) if sel else None
-            if target is None or os.name != "nt":
-                return
-            if target.exists():
-                import subprocess
-
-                subprocess.Popen(["explorer", "/select,", str(target)])
-                return
-            folder = target.parent
-            while not folder.exists() and folder != folder.parent:
-                folder = folder.parent
-            os.startfile(folder)  # type: ignore[attr-defined]
-
         def show_detail(_e=None) -> None:
             sel = tree.selection()
             v = shown.get(sel[0]) if sel else None
             detail.config(text=f"{T('From')}: {v[3]}\n{T('To')}: {v[1]}" if v else "")
 
-        tree.bind("<Double-Button-1>", reveal)
         tree.bind("<<TreeviewSelect>>", show_detail)
-        ttk.Button(foot, text=T("Show on this PC"), style="Narrow.TButton", width=BTN_W, command=reveal).pack(side="right")
 
         def refresh() -> None:
             if not tree.winfo_exists():
@@ -1291,8 +1267,6 @@ class App:
         head = tk.Frame(parent, background=BG)
         head.pack(fill="x", padx=8, pady=8)
         tk.Label(head, text=T("Explorer") if source else T("Save in"), background=BG, foreground=TEXT, font=("Segoe UI", 10)).pack(side="left")
-        tk.Button(head, text="📁", background=BG, foreground=TEXT, relief="flat", borderwidth=0, activebackground=SOFT,
-                  command=self.browse).pack(side="right")
         foot = ttk.Label(parent, style="Muted.TLabel", padding=(8, 6))
         foot.pack(side="bottom", fill="x")
         tree = ttk.Treeview(parent, show="tree", selectmode="browse")
@@ -1347,9 +1321,9 @@ class App:
             if path.is_file():
                 self._add_to_send([path])
             else:
-                self._show_folder(path)
+                self._show_folder(path, only=True)
 
-        pc = tree.insert("", "end", text="  " + T("This PC"), open=True)
+        pc =tree.insert("", "end", text="  " + T("This PC"), open=True)
         home = Path.home()
         for name in ("Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos"):
             if (home / name).is_dir():
@@ -1390,22 +1364,23 @@ class App:
         if d:
             self._show_folder(Path(d))
 
-    def _show_folder(self, folder: Path) -> None:
-        """List the photos, videos, music and documents inside a folder (nothing ticked yet) so they can be previewed and picked."""
+    def _show_folder(self, folder: Path, only: bool = False) -> None:
+        """List the photos, videos, music and documents inside a folder (nothing ticked yet) so they can be previewed and picked.
+        only: show just the files directly in that folder, replacing the list (the Explorer acts as a filter)."""
         exts = PHOTOS | VIDEOS | AUDIO | DOCS | ARCHIVES
         self.status.config(text=T("Looking in {folder}…", folder=folder))
 
         def scan() -> None:
             found = []
             try:
-                for p in folder.rglob("*"):
+                for p in (folder.glob("*") if only else folder.rglob("*")):
                     if p.suffix.lower() in exts and p.is_file():
                         found.append(p)
                         if len(found) >= MAX_PREVIEW:
                             break
             except OSError:
                 pass
-            self.events.put(("folder", found, folder))
+            self.events.put(("folder", found, folder, only))
 
         threading.Thread(target=scan, daemon=True).start()
 
@@ -1506,7 +1481,10 @@ class App:
                                if self.mode.get() == "receive" else "")
             self._sync_buttons()
         elif kind == "folder":
-            _, files, folder = ev
+            _, files, folder, only = ev
+            if only and self.mode.get() == "send":
+                self.all_files = []
+                self.selected = {s for s in self.selected if Path(s).parent == folder}
             self._add_to_send(files, tick=False)
             if not files:
                 self.status.config(text=T("Nothing found in {folder}.", folder=folder))
