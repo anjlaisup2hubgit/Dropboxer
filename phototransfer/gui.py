@@ -186,6 +186,7 @@ class App:
         root.after(POLL_MS, self._poll)
         self.scanning = self.auto = False  # auto: the running connect was started by the cable watcher, so it fails quietly
         root.after(500, self._watch)
+        root.after(300, self._share_start)
 
     # ---- layout -------------------------------------------------------------------------------
     def _style(self) -> None:
@@ -352,7 +353,6 @@ class App:
         self.all_ticked = tk.BooleanVar(value=False)
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0))
-        self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi share"), style="Narrow.TButton", width=BTN_W, command=self.wifi_share)
 
         mid = ttk.Frame(body, padding=(16, 0))
         mid.pack(fill="both", expand=True)
@@ -370,13 +370,24 @@ class App:
         self.canvas.bind("<Motion>", self._motion)
         self.canvas.bind("<Leave>", lambda _e: self._hide_tip(reset=True))
         self.empty = tk.Frame(self.canvas, background=BG)  # iPhone to PC with nothing listed yet: how to get photos
-        for text, command in (("Wi-Fi share", self.wifi_share),):
-            ttk.Button(self.empty, text=T(text), style="Primary.TButton", command=command, width=16).pack(side="left", padx=8, ipady=8)
+        self.share_qr = ttk.Label(self.empty)
+        self.share_qr.pack()
+        ttk.Label(self.empty, text=T("Scan with your phone (same Wi-Fi)")).pack()
+        for attr, label in (("share_wifi", "Wi-Fi"), ("share_away", "Tailscale")):
+            row = ttk.Frame(self.empty)
+            ttk.Label(row, text=label, width=10).pack(side="left")
+            entry = ttk.Entry(row, width=44)
+            entry.pack(side="left")
+            setattr(self, attr + "_row", row)
+            setattr(self, attr, entry)
 
         self.status = ttk.Label(body, text="",
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
         self.status.pack(side="bottom", fill="x", before=mid)  # a short window shrinks the grid, not the status
         self._wings_state()
+        self.dest.trace_add("write", lambda *_: self._share_changed())
+        if getattr(self, "_wifi_server", None):
+            self._share_show()
         if self.wings:  # rebuilt while open (a language change): the wings stay out
             self._open_wings_now()
 
@@ -830,8 +841,6 @@ class App:
             self.copy_btn.config(text=T("Send {n}", n=n) if n else T("Send"), state="normal" if ready and n else "disabled")
         else:
             self.copy_btn.config(text=T("Copy {n}", n=n) if n else T("Copy"), state="normal" if ready and n else "disabled")
-        show = self.mode.get() == "receive" and bool(self.all_files)  # otherwise the middle of the list has them
-        self.wifi_btn.pack(side="right", padx=(0, 6)) if show else self.wifi_btn.pack_forget()
         self.cancel_btn.pack(side="left", padx=(8, 0), after=self.copy_btn) if self.busy else self.cancel_btn.pack_forget()
 
     def browse(self) -> None:
@@ -908,105 +917,54 @@ class App:
         summary = await copy_files(self.source, files, DEFAULT_ROOT, dest, progress, 1, True, self.cancel.is_set)  # one at a time, sorted into date folders
         self.events.put(("finished", summary))
 
-    def wifi_share(self) -> None:
-        """Share the 'Save in' folder with phones on this Wi-Fi: view photos there, upload from the phone."""
-        if getattr(self, "wifi_win", None) and self.wifi_win.winfo_exists():
-            self.wifi_win.lift()
-            return
-        from .wifi import WifiServer, persistent_token, qr_png
+    def _share_start(self) -> None:
+        """Share the Save in folder over Wi-Fi (and Tailscale) so a phone can scan the QR code; restarted when the folder changes."""
+        from .wifi import WifiServer, persistent_token
 
+        old = getattr(self, "_wifi_server", None)
+        if old:
+            old.stop()
+        self._wifi_server = None
         folder = Path(self.dest.get().strip() or ".")
-        token = persistent_token()
-
-        def start(tls: bool) -> WifiServer:
-            server = WifiServer(folder, folder, token=token, tls=tls)
-            server.start()
-            return server
-
         try:
             folder.mkdir(parents=True, exist_ok=True)
-            server = start(False)
-        except OSError as e:
-            messagebox.showerror(T("Wi-Fi share"), T("Could not start sharing: {e}", e=e))
-            return
-        win = self.wifi_win = tk.Toplevel(self.root)
-        win.title(f"{APP_NAME} - {T('Wi-Fi share')}")
-        win.configure(background=BG)
-        qr = ttk.Label(win)
-        qr.pack(padx=12, pady=(12, 4))
-        ttk.Label(win, text=T("Scan with your phone (same Wi-Fi)")).pack()
-        link = ttk.Entry(win, width=44)
-        link.pack(padx=12, pady=4)
-        away_label = ttk.Label(win, text=T("Away from home (needs Tailscale):"))
-        away = ttk.Entry(win, width=44)
-        https = tk.BooleanVar(value=False)
-        note = ttk.Label(win, justify="center", wraplength=340, padding=8)
-        count = ttk.Label(win, text=T("{n} files received", n=0))
+            for port in (8765, 0):  # 0: another copy of the app already holds the usual port
+                try:
+                    server = WifiServer(folder, folder, port=port, token=persistent_token())
+                    server.start()
+                    self._wifi_server = server
+                    break
+                except OSError:
+                    continue
+        except OSError:
+            pass
+        self._share_show()
 
-        def show() -> None:
+    def _share_changed(self) -> None:
+        if getattr(self, "_share_after", None):
+            self.root.after_cancel(self._share_after)
+        self._share_after = self.root.after(800, self._share_start)  # wait until the folder box stops changing
+
+    def _share_show(self) -> None:
+        """Fill the QR code and the two links in the empty iPhone list."""
+        from .wifi import qr_png
+
+        server = getattr(self, "_wifi_server", None)
+        for entry, url in ((self.share_wifi, server and server.url), (self.share_away, server and server.remote_url)):
+            entry.config(state="normal")
+            entry.delete(0, "end")
+            entry.insert(0, url or "")
+            entry.config(state="readonly")
+        for row in (self.share_wifi_row, self.share_away_row):
+            row.pack_forget()
+        if server:
             self.qr_img = tk.PhotoImage(data=qr_png(server.url))  # keep a reference or tk drops it
-            qr.config(image=self.qr_img)
-            link.config(state="normal")
-            link.delete(0, "end")
-            link.insert(0, server.url)
-            link.config(state="readonly")
-            text = T("Saves to: {folder}", folder=folder)
-            if server.tls:
-                text += "\n" + T("First time only, open this on the phone to set it up: {url}", url=server.cert_url)
-            away.config(state="normal")
-            away.delete(0, "end")
+            self.share_qr.config(image=self.qr_img)
+            self.share_wifi_row.pack(fill="x", pady=(8, 0))
             if server.remote_url:
-                away.insert(0, server.remote_url)
-                away_label.pack(after=link)
-                away.pack(after=away_label, padx=12, pady=4)
-            else:
-                away_label.pack_forget()
-                away.pack_forget()
-            away.config(state="readonly")
-            note.config(text=text)
-
-        def change_folder() -> None:
-            nonlocal folder, server
-            d = filedialog.askdirectory(parent=win, initialdir=folder if folder.exists() else None)
-            if not d:
-                return
-            folder = Path(d)
-            self.dest.set(d)  # the shared folder and "Save in" are the same folder
-            toggle()
-
-        def toggle() -> None:
-            nonlocal server
-            server.stop()
-            try:
-                server = start(https.get())
-            except OSError as e:
-                messagebox.showerror(T("Wi-Fi share"), T("Could not restart sharing: {e}", e=e))
-                https.set(False)
-                server = start(False)
-            self._wifi_server = server
-            count.config(text=T("{n} files received", n=0))
-            show()
-
-        ttk.Checkbutton(win, text=T("Save many photos at once (needs a one-time setup on the phone)"), variable=https,
-                        command=toggle).pack()
-        ttk.Button(win, text=T("Change shared folder"), command=change_folder).pack(pady=(0, 4))
-        note.pack()
-        count.pack()
-
-        def tick() -> None:
-            if win.winfo_exists():
-                count.config(text=T("{n} files received", n=len(server.received)))
-                win.after(1000, tick)
-
-        def close() -> None:
-            server.stop()
-            win.destroy()
-
-        ttk.Button(win, text=T("Stop sharing"), style="Danger.TButton", command=close).pack(pady=(4, 14))
-        win.protocol("WM_DELETE_WINDOW", close)
-        self._wifi_server = server
-        show()
-        tick()
+                self.share_away_row.pack(fill="x", pady=(4, 0))
+        else:
+            self.share_qr.config(image="")
 
     def _send_to_changed(self) -> None:
         app = SEND_TO[self.send_names[self.send_to.get()]]
