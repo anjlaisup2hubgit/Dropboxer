@@ -1094,6 +1094,20 @@ class App:
         except OSError:
             pass
         self._share_show()
+        if not getattr(self, "_share_watching", False):
+            self._share_watching = True
+            self._share_watch()
+
+    def _share_watch(self) -> None:
+        """Redraw the QR code and links when the PC changes network (hotspot to home Wi-Fi, VPN, ...)."""
+        from .wifi import lan_ip
+
+        server = getattr(self, "_wifi_server", None)
+        ip = lan_ip()
+        if server and ip != getattr(self, "_share_ip", ip):
+            self._share_show()
+        self._share_ip = ip
+        self.root.after(5000, self._share_watch)
 
     def _share_changed(self) -> None:
         if getattr(self, "_share_after", None):
