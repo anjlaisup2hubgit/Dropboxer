@@ -901,7 +901,7 @@ class App:
     def _load_visible(self) -> None:
         """Ask for thumbnails of the cells currently on screen (not the whole library)."""
         local = self.mode.get() == "send"  # the list holds files on this PC, so no phone is needed
-        if self.busy or not (local or self.source):
+        if not local and (self.busy or not self.source):  # PC thumbnails never touch the phone, so a send in progress does not block them
             return
         for f in self.visible:
             if f.path not in self.thumb_asked and (is_image(f.path) or is_video(f.path) or Path(f.path).suffix.lower() in ZIPPED or (local and is_audio(f.path))):
@@ -1479,6 +1479,7 @@ class App:
             s = ev[1]
             self.busy = False
             self._set_progress(100 if not (s.aborted or self.cancel.is_set()) else self.progress)
+            self.root.after(2000, lambda: None if self.busy else self._set_progress(0))  # the full bar clears itself, ready for the next send
             verb, already = ev[2:] if len(ev) > 2 else ("Copied", "already done")
             msg = T("{verb} {n} ({size}), skipped {skipped} {already}, failed {failed}.", verb=T(verb), n=len(s.copied),
                     size=_human(s.bytes_copied), skipped=len(s.skipped), already=T(already), failed=len(s.failed))
