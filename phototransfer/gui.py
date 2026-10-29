@@ -103,14 +103,6 @@ PAPER = "#f8fafd"  # inputs, buttons and pop-ups: a touch lighter than the windo
 BG, HEAD, PANEL, SOFT, LINE = "#eef3f8", "#e1e9f2", PAPER, "#e3eaf2", "#c9d5e2"
 TEXT, MUTED, GREEN, GREEN_DARK, RED = "#1f2933", "#66727f", "#2b6cb0", "#1f5290", "#b5352b"  # GREEN is the blue accent (name is historical)
 TICK_BLUE = "#2b6cb0"
-LIGHT = dict(PAPER=PAPER, BG=BG, HEAD=HEAD, PANEL=PANEL, SOFT=SOFT, LINE=LINE, TEXT=TEXT, MUTED=MUTED, GREEN=GREEN,
-             GREEN_DARK=GREEN_DARK, RED=RED, TICK_BLUE=TICK_BLUE)
-DARK = dict(PAPER="#3b3b3b", BG="#303030", HEAD="#262626", PANEL="#3b3b3b", SOFT="#454545", LINE="#555555", TEXT="#e8e8e8",
-            MUTED="#a3a3a3", GREEN="#2f7fd3", GREEN_DARK="#7ab8f5", RED="#ff8a80", TICK_BLUE="#3d8fe0")  # the Wings look
-
-
-def _theme(dark: bool) -> None:
-    globals().update(DARK if dark else LIGHT)
 
 
 def _load_settings() -> dict:
@@ -266,7 +258,7 @@ class App:
         self.verb, self.nfiles, self.sizes = "Copying", 0, {}  # for the "3 of 80" progress text
         self.flights: dict[str, list] = {}  # progress path -> [from, to, bytes done, size] for the Wings window
         self.flight_ends = ("", "")  # where the current batch leaves from and arrives at
-        self.wings = False  # the dark four-pane layout: albums, files, routes, PC folders
+        self.wings = False  # the four-pane layout: albums, files, routes, PC folders
         self.send_scanned = False  # the Pictures folder is previewed the first time PC to iPhone opens
 
         # One background thread owns the event loop (and so the device connection).
@@ -320,15 +312,15 @@ class App:
         # Outlined buttons with a thin line; the main action is solid green.
         s.configure("TButton", background=PAPER, foreground=TEXT, bordercolor=LINE, lightcolor=PAPER,
                     darkcolor=PAPER, borderwidth=1, padding=(14, 6), relief="solid")
-        s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#777777" if self.wings else "#aab4bf"), ("active", GREEN_DARK)],
+        s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#aab4bf"), ("active", GREEN_DARK)],
               bordercolor=[("disabled", LINE), ("active", GREEN)])
         s.configure("Narrow.TButton", padding=(6, 6))  # the date buttons and Clear dates
-        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#3a5573" if self.wings else "#b5cde8", "white", True),
-                                                ("Danger", PAPER, "#4a2f2d" if self.wings else "#fbeceb", PAPER, RED, False)):
+        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#b5cde8", "white", True),
+                                                ("Danger", PAPER, "#fbeceb", PAPER, RED, False)):
             s.configure(f"{name}.TButton", background=bg, foreground=fg, font=("Segoe UI", 10, "bold"),
-                        bordercolor=bg if fill else "#7a4a46" if self.wings else "#e3c4c0", lightcolor=bg, darkcolor=bg)
+                        bordercolor=bg if fill else "#e3c4c0", lightcolor=bg, darkcolor=bg)
             s.map(f"{name}.TButton", background=[("disabled", off), ("active", hover)],
-                  foreground=[("disabled", "white" if fill else "#7a4a46" if self.wings else "#e3c3bf")],
+                  foreground=[("disabled", "white" if fill else "#e3c3bf")],
                   bordercolor=[("disabled", off if fill else LINE), ("active", hover if fill else RED)])
         s.configure("Seg.Toolbutton", background=PAPER, foreground=TEXT, bordercolor=LINE,
                     lightcolor=PAPER, darkcolor=PAPER, padding=(14, 6), borderwidth=1, relief="solid")
@@ -351,7 +343,7 @@ class App:
                     lightcolor=GREEN, darkcolor=GREEN, thickness=8)
         s.configure("Vertical.TScrollbar", troughcolor=BG, background=LINE, bordercolor=BG, arrowcolor=BG,
                     lightcolor=LINE, darkcolor=LINE)
-        s.map("Vertical.TScrollbar", background=[("active", "#6a6a6a" if self.wings else "#b5c4d5")])
+        s.map("Vertical.TScrollbar", background=[("active", "#b5c4d5")])
         s.configure("Treeview", background=BG, fieldbackground=BG, foreground=TEXT, borderwidth=0, rowheight=24)
         s.map("Treeview", background=[("selected", GREEN)], foreground=[("selected", "white")])
         s.configure("Treeview.Heading", background=HEAD, foreground=TEXT, relief="flat", padding=4)
@@ -362,9 +354,6 @@ class App:
         c, width = self.banner, self.banner.winfo_width()
         cut = width * self.progress / 100
         c.delete("all")
-        if self.wings:  # a thin line, like the reference
-            c.create_rectangle(0, 0, cut, 4, fill=GREEN, outline="")
-            return
         c.create_rectangle(0, 0, cut, 18, fill=GREEN_DARK, outline="")
         for x in range(0, width + 36, 36):
             tri = [(x, 0), (x + 36, 0), (x + 18, 18)]
@@ -389,7 +378,7 @@ class App:
         head.pack(fill="x")
         tk.Frame(self.root, height=1, background=LINE).pack(fill="x")  # thin line under the header
         self.progress = 0.0
-        self.banner = tk.Canvas(self.root, height=4 if self.wings else 18, highlightthickness=0, background=LINE if self.wings else "#a9c3e0")  # zigzag strip, like the card banners
+        self.banner = tk.Canvas(self.root, height=18, highlightthickness=0, background="#a9c3e0")  # zigzag strip, like the card banners
         self.banner.pack(fill="x")
         self.banner.bind("<Configure>", lambda _e: self._zigzag())
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
@@ -498,9 +487,8 @@ class App:
         self._rebuild()
 
     def toggle_wings(self) -> None:
-        """Wings: turn the window into the dark four-pane layout (and back): albums, files, routes, PC folders."""
+        """Wings: turn the window into the four-pane layout (and back): albums, files, routes, PC folders."""
         self.wings = not self.wings
-        _theme(self.wings)
         k = self.root.winfo_fpixels("1i") / 96
         width = min(round((1560 if self.wings else 1100) * k), self.root.winfo_screenwidth() - 20)
         self.root.geometry(f"{width}x{self.root.winfo_height()}+{max(0, (self.root.winfo_screenwidth() - width) // 2)}+{self.root.winfo_y()}")
