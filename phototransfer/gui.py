@@ -100,7 +100,6 @@ BTN_W = 14  # every plain button has the same width (fits "28 Oct 2026 ▾" and 
 PAPER = "#f8fafd"  # inputs, buttons and pop-ups: a touch lighter than the window
 BG, HEAD, PANEL, SOFT, LINE = "#eef3f8", "#e1e9f2", PAPER, "#e3eaf2", "#c9d5e2"
 TEXT, MUTED, GREEN, GREEN_DARK, RED = "#1f2933", "#66727f", "#2b6cb0", "#1f5290", "#b5352b"  # GREEN is the blue accent (name is historical)
-TICK_BLUE = "#2b6cb0"
 
 
 def _load_settings() -> dict:
@@ -627,24 +626,17 @@ class App:
             if kind:
                 self._kind_badge(x0 + 5, y0 + THUMB - 5 - 18, kind)
             if f.path in self.selected:
-                c.create_rectangle(x0, y0, x0 + THUMB, y0 + THUMB, fill=TICK_BLUE, stipple="gray50", outline="")  # blue filter
-                c.create_rectangle(x0, y0, x0 + THUMB, y0 + THUMB, outline=TICK_BLUE, width=3)
-                r = 13 * THUMB / 200  # blue disc with a white tick, bottom right, like the iPhone's
-                cx, cy = x0 + THUMB - 8 - r, y0 + THUMB - 8 - r
-                c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=TICK_BLUE, outline="white", width=2)
-                c.create_line(cx - r * .45, cy + r * .02, cx - r * .1, cy + r * .38, cx + r * .5, cy - r * .35,
-                              fill="white", width=max(2, int(r / 4)), capstyle="round", joinstyle="round")
+                self._pick_box(x0, y0, x0 + THUMB, y0 + THUMB)
             self.hits.append((x0, y0, x0 + THUMB, y0 + THUMB, "cell", f))
             self.visible.append(f)
         if self.band:  # the box being dragged
-            l, t, rt, b = self.band
-            c.create_rectangle(l, t, rt, b, outline=GREEN, fill=GREEN, stipple="gray12", width=1)
-            w, h, gap = rt - l, b - t, 10
-            for k in range(-int(h) // gap * gap, int(w), gap):  # diagonal stripes, clipped to the box
-                t0, t1 = max(0, -k), min(h, w - k)
-                if t0 < t1:
-                    c.create_line(l + k + t0, t + t0, l + k + t1, t + t1, fill=GREEN)
+            self._pick_box(*self.band)
         self._load_visible()
+
+    def _pick_box(self, l: float, t: float, r: float, b: float) -> None:
+        """The look of a hovered button, for selected pictures and the box dragged over them: a light blue filter and a blue outline."""
+        self.canvas.create_rectangle(l, t, r, b, fill=GREEN, stipple="gray25", outline="")
+        self.canvas.create_rectangle(l, t, r, b, outline=GREEN, width=2)
 
     def _kind_badge(self, x: float, y: float, kind: str, c: tk.Canvas | None = None) -> None:
         """A small dark badge (24x18, top-left at x, y) with a white symbol: video, music, document or archive."""
