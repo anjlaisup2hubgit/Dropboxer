@@ -343,10 +343,10 @@ class App:
         pick.pack(side="left", padx=8)
         pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
         self.remote = tk.StringVar(value=DEFAULT_UPLOAD_ROOT)
-        self.remote_label = ttk.Label(row, text=_cap(T("folder")))
+        self.remote_label = ttk.Label(row, text=_cap(T("folder name")))
         self.remote_label.pack(side="left")
         ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
-        self.send_note = ttk.Label(row, text="⚠ " + T("Won't show in Photos."), style="Muted.TLabel", foreground=RED)
+        self.send_note = ttk.Label(row, text="", style="Muted.TLabel", foreground=MUTED)
         self.send_note.pack(side="left")
 
         # Filters and select-all sit in view, because they are used all the time.
@@ -980,10 +980,10 @@ class App:
     def _send_to_changed(self) -> None:
         app = SEND_TO[self.send_names[self.send_to.get()]]
         self.remote.set(DEFAULT_UPLOAD_ROOT if app is None else "")
-        self.remote_label.config(text=_cap(T("folder") if app is None else T("subfolder (optional)")))
-        self.send_note.config(text="⚠ " + T("Won't show in Photos.") if app is None else
+        self.remote_label.config(text=_cap(T("folder name")))
+        self.send_note.config(text="" if app is None else
                               T("Find them in {app}.", app=self.send_to.get().split(" (")[0]),
-                              foreground=RED if app is None else MUTED)
+                              foreground=MUTED)
         wing = getattr(self, "wing_label", None)  # the right wing keeps its own copies
         if wing is not None and wing.winfo_exists():
             wing.config(text=self.remote_label.cget("text"))
