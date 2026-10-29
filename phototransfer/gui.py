@@ -1382,8 +1382,10 @@ class App:
 
         app = SEND_TO[self.send_names[self.send_to.get()]]
         dest = await self.source.open_app(app) if app else self.source
+        if app:  # the phone refuses the top of an app's sandbox; shared files live in its Documents folder
+            remote = "/Documents/" + remote.strip("/")
         try:
-            summary = await upload_files(dest, paths, root, "" if remote == "/" and app else remote, progress, self.cancel.is_set)
+            summary = await upload_files(dest, paths, root, remote, progress, self.cancel.is_set)
         finally:
             if app:
                 await dest.close()
