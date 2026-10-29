@@ -96,6 +96,7 @@ VI = {
     "{n} found": "Tìm thấy {n}",
     "{n} found from {lo} to {hi}": "Tìm thấy {n} từ {lo} đến {hi}",
     "Nothing found in {folder}.": "Không tìm thấy gì trong {folder}.",
+    "Showing {folder}. Double-click This PC to show everything again.": "Đang hiện {folder}. Bấm đúp This PC để hiện lại tất cả.",
     "Looking in {folder}…": "Đang tìm trong {folder}…",
     "{err}. Check the cable, unlock the phone; it reconnects by itself.":
         "{err}. Kiểm tra cáp, mở khóa điện thoại; máy tự kết nối lại.",

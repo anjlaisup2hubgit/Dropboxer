@@ -127,6 +127,7 @@ class App:
         self.root, self.source_dir, self.udid = root, source_dir, udid
         self.source: Source | None = None
         self.all_files: list[RemoteFile] = []
+        self.folder_stash: tuple[list[RemoteFile], set[str]] | None = None  # the list before an Explorer folder filtered it
         self.shown: list[RemoteFile] = []  # after the Show and date filters, newest first
         self.groups: list[tuple[str, list[RemoteFile]]] = []  # (YYYY-MM-DD, files) in display order
         self.selected: set[str] = set()  # paths
@@ -1246,6 +1247,9 @@ class App:
 
         def listing(_e=None) -> None:
             sel = tree.selection()
+            if sel and source and sel[0] == pc:  # This PC: undo the folder filter
+                self._unfilter_folder()
+                return
             path = paths.get(sel[0]) if sel and source else None
             if path is None:
                 return
@@ -1295,6 +1299,17 @@ class App:
         ttk.Entry(row, textvariable=self.remote).pack(fill="x", pady=(6, 8))
         self.wing_note = ttk.Label(row, text=self.send_note.cget("text"), style="Muted.TLabel", foreground=str(self.send_note.cget("foreground")))
         self.wing_note.pack(anchor="w")
+
+    def _unfilter_folder(self) -> None:
+        """Bring back the list that was on screen before a folder was double-clicked in the Explorer."""
+        if self.folder_stash is None:
+            return
+        self.all_files, self.selected = self.folder_stash
+        self.folder_stash = None
+        self.thumb_asked.clear()
+        self._fill()
+        self.status.config(text="")
+        self._sync_buttons()
 
     def _show_folder(self, folder: Path, only: bool = False) -> None:
         """List the photos, videos, music and documents inside a folder (nothing ticked yet) so they can be previewed and picked.
@@ -1423,11 +1438,15 @@ class App:
         elif kind == "folder":
             _, files, folder, only = ev
             if only and self.mode.get() == "send":
+                if self.folder_stash is None:  # remember the list the folder replaces, so This PC can bring it back
+                    self.folder_stash = (self.all_files, set(self.selected))
                 self.all_files = []
                 self.selected = {s for s in self.selected if Path(s).parent == folder}
             self._add_to_send(files, tick=False)
             if not files:
                 self.status.config(text=T("Nothing found in {folder}.", folder=folder))
+            elif only:
+                self.status.config(text=T("Showing {folder}. Double-click This PC to show everything again.", folder=folder))
         elif kind == "preview":
             _, png, win, label = ev
             if win.winfo_exists():
