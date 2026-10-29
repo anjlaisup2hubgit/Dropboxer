@@ -47,6 +47,7 @@ VI = {
     "Music": "Nhạc",
     "Documents": "Tài liệu",
     "Archives": "Tệp nén",
+    "Filter": "Bộ lọc",
     "Select all": "Chọn tất cả",
     "Deselect all": "Bỏ chọn tất cả",
     "Wi-Fi": "Wi-Fi",

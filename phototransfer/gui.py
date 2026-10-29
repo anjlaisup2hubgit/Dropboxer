@@ -445,15 +445,20 @@ class App:
             for w in slot.winfo_children():
                 w.destroy()
         if self.mode.get() == "send":
-            self._build_explorer(self.left_slot, source=True)
+            top = tk.Frame(self.left_slot, background=BG)
+            top.pack(fill="x")
+            self._build_albums(top, rows=len(KINDS))
+            low = tk.Frame(self.left_slot, background=BG)
+            low.pack(fill="both", expand=True)
+            self._build_explorer(low, source=True)
             self._build_iphone_dest(self.right_slot)
         else:
             self._build_albums(self.left_slot)
             self._build_explorer(self.right_slot, source=False)
 
     def _kind_bar_state(self) -> None:
-        """The type buttons are redundant while the left wing lists the same types (iPhone to PC with Wings open)."""
-        hide = self.wings and self.mode.get() != "send"
+        """The type buttons are redundant while the left wing has the Filter list."""
+        hide = self.wings
         if hide:
             self.kind_seg.pack_forget()
         elif not self.kind_seg.winfo_ismapped():
@@ -1036,14 +1041,14 @@ class App:
         win.focus_set()
 
     # ---- Wings panes --------------------------------------------------------------------------
-    def _build_albums(self, parent: tk.Frame) -> None:
-        """Left pane: the file types as a list with counts (the same filter as the buttons in the normal layout)."""
-        tk.Label(parent, text=T("Send to"), background=BG, foreground=MUTED,
+    def _build_albums(self, parent: tk.Frame, rows: int | None = None) -> None:
+        """Filter list: the file types with counts (the same filter as the buttons in the normal layout)."""
+        tk.Label(parent, text=T("Filter"), background=BG, foreground=MUTED,
                  font=("Segoe UI", 9, "bold"), anchor="w", padx=14, pady=8).pack(fill="x")
         self.album_list = box = tk.Listbox(parent, background=BG, foreground=TEXT, selectbackground=GREEN, selectforeground="white",
                                            highlightthickness=0, borderwidth=0, activestyle="none", exportselection=False,
-                                           font=("Segoe UI", 11))
-        box.pack(fill="both", expand=True)
+                                           font=("Segoe UI", 11), **({"height": rows} if rows else {}))
+        box.pack(fill="x" if rows else "both", expand=not rows)
         box.bind("<<ListboxSelect>>", lambda _e: self._pick_album(box.curselection()))
         self._update_albums()
 
