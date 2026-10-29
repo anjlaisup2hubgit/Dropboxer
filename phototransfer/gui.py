@@ -1476,6 +1476,8 @@ class App:
                     size=_human(s.bytes_copied), skipped=len(s.skipped), already=T(already), failed=len(s.failed))
             if self.cancel.is_set():
                 msg += T(" Cancelled; run it again to continue.")
+                if verb == "Sent":  # a send stopped mid-file can leave the phone's session stuck; reconnect fresh
+                    self._drop_source()
             if s.aborted:
                 self._drop_source()
                 msg += T(" Stopped early: {why}. Unlock the phone; it reconnects by itself, then copy again to resume.", why=s.aborted)

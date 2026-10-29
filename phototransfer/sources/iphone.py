@@ -87,8 +87,12 @@ class IPhoneSource(Source):
             for chunk in chunks:
                 await self._afc.fwrite(handle, chunk)
         except BaseException:
-            await self._afc.fclose(handle)
-            await self._afc.rm_single(part, force=True)
+            # A pause lands here mid-write. A failing clean-up must not hide it or leave the session half-open.
+            for undo in (lambda: self._afc.fclose(handle), lambda: self._afc.rm_single(part, force=True)):
+                try:
+                    await undo()
+                except Exception:
+                    pass
             raise
         await self._afc.fclose(handle)
         await self._afc.rm_single(path, force=True)  # rename will not overwrite
