@@ -227,6 +227,10 @@ class App:
                   bordercolor=[("disabled", off if fill else LINE), ("active", hover if fill else RED)])
         s.configure("Seg.Toolbutton", background=PAPER, foreground=TEXT, bordercolor=LINE,
                     lightcolor=PAPER, darkcolor=PAPER, padding=(14, 6), borderwidth=1, relief="solid")
+        plain = [("Button.border", {"sticky": "nswe", "children": [
+            ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})]
+        for name in ("TButton", "Narrow.TButton", "Primary.TButton", "Danger.TButton"):
+            s.layout(name, plain)  # no dotted focus outline on any button
         s.layout("Seg.Toolbutton", [("Button.border", {"sticky": "nswe", "children": [
             ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})])  # no dotted focus outline
         s.map("Seg.Toolbutton", background=[("selected", GREEN), ("active", SOFT)],
