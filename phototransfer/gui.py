@@ -985,6 +985,10 @@ class App:
         self.send_note.config(text="⚠ " + T("Won't show in Photos.") if app is None else
                               T("Find them in {app}.", app=self.send_to.get().split(" (")[0]),
                               foreground=RED if app is None else MUTED)
+        wing = getattr(self, "wing_label", None)  # the right wing keeps its own copies
+        if wing is not None and wing.winfo_exists():
+            wing.config(text=self.remote_label.cget("text"))
+            self.wing_note.config(text=self.send_note.cget("text"), foreground=str(self.send_note.cget("foreground")))
 
     def show_manual(self) -> None:
         """The instruction manual: the things the window does not make obvious, and what files are accepted."""
@@ -1123,14 +1127,28 @@ class App:
         """PC to iPhone, right wing: where on the iPhone the files go (the same choice as Send to in the middle)."""
         tk.Label(parent, text=T("iPhone"), background=BG, foreground=MUTED,
                  font=("Segoe UI", 9, "bold"), anchor="w", padx=14, pady=8).pack(fill="x")
+        names = list(self.send_names)
+        box = tk.Listbox(parent, background=BG, foreground=TEXT, selectbackground=GREEN, selectforeground="white",
+                         highlightthickness=0, borderwidth=0, activestyle="none", exportselection=False,
+                         font=("Segoe UI", 11), height=len(names))
+        for name in names:
+            box.insert("end", f"   {name}")
+        box.selection_set(names.index(self.send_to.get()))
+        box.pack(fill="x")
+
+        def chosen(_e=None) -> None:
+            if box.curselection():
+                self.send_to.set(names[box.curselection()[0]])
+                self._send_to_changed()
+
+        box.bind("<<ListboxSelect>>", chosen)
         row = tk.Frame(parent, background=BG)
-        row.pack(fill="x", padx=14)
-        pick = ttk.Combobox(row, textvariable=self.send_to, values=list(self.send_names), state="readonly")
-        pick.pack(fill="x", pady=(0, 8))
-        pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
-        ttk.Label(row, text=_cap(T("folder"))).pack(anchor="w")
+        row.pack(fill="x", padx=14, pady=(10, 0))
+        self.wing_label = ttk.Label(row, text=self.remote_label.cget("text"))
+        self.wing_label.pack(anchor="w")
         ttk.Entry(row, textvariable=self.remote).pack(fill="x", pady=(2, 8))
-        ttk.Label(row, text="⚠ " + T("Won't show in Photos."), style="Muted.TLabel", foreground=RED).pack(anchor="w")
+        self.wing_note = ttk.Label(row, text=self.send_note.cget("text"), style="Muted.TLabel", foreground=str(self.send_note.cget("foreground")))
+        self.wing_note.pack(anchor="w")
 
     def _show_folder(self, folder: Path, only: bool = False) -> None:
         """List the photos, videos, music and documents inside a folder (nothing ticked yet) so they can be previewed and picked.
