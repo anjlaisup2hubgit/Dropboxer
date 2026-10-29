@@ -144,6 +144,7 @@ class App:
         self.cancel = threading.Event()
         self.busy = False
         self.thumb_by_path: dict[str, tk.PhotoImage] = {}  # kept here so tk does not garbage-collect them
+        self.tints: dict[tuple[int, int], object] = {}  # see-through blue overlays by size (selected tiles, drag box)
         self.thumb_asked: set[str] = set()
         self.thumb_fails: dict[str, int] = {}
         self.visible: list[RemoteFile] = []
@@ -634,9 +635,15 @@ class App:
         self._load_visible()
 
     def _pick_box(self, l: float, t: float, r: float, b: float) -> None:
-        """The look of a hovered button, for selected pictures and the box dragged over them: a light blue filter and a blue outline."""
-        self.canvas.create_rectangle(l, t, r, b, fill=GREEN, stipple="gray25", outline="")
-        self.canvas.create_rectangle(l, t, r, b, outline=GREEN, width=2)
+        """The look of a hovered button, for selected pictures and the box dragged over them: a light see-through blue and a thin blue outline."""
+        from PIL import Image, ImageTk
+
+        w, h = max(1, round(r - l)), max(1, round(b - t))
+        if len(self.tints) > 48:
+            self.tints.clear()
+        tint = self.tints.get((w, h)) or self.tints.setdefault((w, h), ImageTk.PhotoImage(Image.new("RGBA", (w, h), (43, 108, 176, 40))))
+        self.canvas.create_image(l, t, image=tint, anchor="nw")  # see-through, so the picture shows under the tint
+        self.canvas.create_rectangle(l, t, l + w - 1, t + h - 1, outline=GREEN, width=1)
 
     def _kind_badge(self, x: float, y: float, kind: str, c: tk.Canvas | None = None) -> None:
         """A small dark badge (24x18, top-left at x, y) with a white symbol: video, music, document or archive."""
