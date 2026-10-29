@@ -234,13 +234,15 @@ class App:
         s.layout("Seg.Toolbutton", [("Button.border", {"sticky": "nswe", "children": [
             ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})])  # no dotted focus outline
         s.map("Seg.Toolbutton", background=[("selected", GREEN), ("active", SOFT)],
-              foreground=[("selected", "white")], bordercolor=[("selected", GREEN), ("active", GREEN)])
+              foreground=[("selected", "white")], bordercolor=[("selected", GREEN), ("active", GREEN)],
+              lightcolor=[("selected", GREEN), ("active", SOFT)], darkcolor=[("selected", GREEN), ("active", SOFT)])  # no pale rim inside the blue
         s.configure("TEntry", fieldbackground=PAPER, foreground=TEXT, insertcolor=TEXT, padding=6)
         s.map("TEntry", fieldbackground=[("readonly", SOFT)], bordercolor=[("focus", GREEN)])
         s.configure("TCombobox", fieldbackground=PAPER, background=PAPER, foreground=TEXT, arrowcolor=TEXT, padding=5,
                     selectbackground=PAPER, selectforeground=TEXT)  # readonly boxes looked greyed out and turned dark when focused
         s.map("TCombobox", fieldbackground=[("readonly", PAPER)], foreground=[("readonly", TEXT)],
               selectbackground=[("readonly", PAPER)], selectforeground=[("readonly", TEXT)], bordercolor=[("focus", GREEN)])
+        self.root.option_add("*TCombobox*Listbox.font", ("Segoe UI", 10))
         self.root.option_add("*TCombobox*Listbox.background", PAPER)
         self.root.option_add("*TCombobox*Listbox.foreground", TEXT)
         self.root.option_add("*TCombobox*Listbox.selectBackground", GREEN)
@@ -291,7 +293,7 @@ class App:
         self.banner.pack(fill="x")
         self.banner.bind("<Configure>", lambda _e: self._zigzag())
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
-        lang = ttk.Combobox(head, values=list(LANGUAGES.values()), state="readonly", width=11)
+        lang = ttk.Combobox(head, values=list(LANGUAGES.values()), state="readonly", width=12)
         lang.set(LANGUAGES[language()])
         lang.pack(side="right")
         lang.bind("<<ComboboxSelected>>", lambda _e: self._set_language(lang.current()))
@@ -317,7 +319,7 @@ class App:
         self.seg = seg = ttk.Frame(top)
         seg.pack(side="left")
         for text, value in (("PC to iPhone", "send"), ("iPhone to PC", "receive")):
-            ttk.Radiobutton(seg, text=T(text), value=value, variable=self.mode, style="Seg.Toolbutton",
+            ttk.Radiobutton(seg, text=T(text), value=value, variable=self.mode, style="Seg.Toolbutton", takefocus=False,
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
         self.copy_btn = ttk.Button(top, text=T("Copy"), style="Primary.TButton", command=self.primary_action, state="disabled")
         self.copy_btn.pack(side="left", padx=(16, 0))
@@ -351,10 +353,10 @@ class App:
         bar = ttk.Frame(body, padding=(16, 0, 16, 8))
         bar.pack(fill="x")
         self.kind = tk.StringVar(value="Gallery")
-        self.kind_seg = ttk.Frame(bar)  # Wings hides these: the left wing has the same list
+        self.kind_seg = ttk.Frame(bar)  # always shown, so the middle looks the same with and without Wings
         self.kind_seg.pack(side="left")
         for name in KINDS:
-            ttk.Radiobutton(self.kind_seg, text=T(name), value=name, variable=self.kind, style="Seg.Toolbutton",
+            ttk.Radiobutton(self.kind_seg, text=T(name), value=name, variable=self.kind, style="Seg.Toolbutton", takefocus=False,
                             command=self._fill).pack(side="left", padx=(0, 2))
         self.all_ticked = tk.BooleanVar(value=False)
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
@@ -386,6 +388,14 @@ class App:
             entry.pack(side="left")
             setattr(self, attr + "_row", row)
             setattr(self, attr, entry)
+
+        self.dest_row.pack(fill="x")  # both rows are as tall as the taller one, so the filters below never move between tabs
+        self.remote_row.pack(fill="x")
+        self.root.update_idletasks()
+        self.rows.configure(height=max(self.dest_row.winfo_reqheight(), self.remote_row.winfo_reqheight()) + 8)
+        self.rows.pack_propagate(False)
+        self.dest_row.pack_forget()
+        self.remote_row.pack_forget()
 
         self.status = ttk.Label(body, text="",
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
@@ -440,17 +450,13 @@ class App:
             self._build_explorer(self.right_slot, source=False)
 
     def _wings_state(self) -> None:
-        """The Wings button shows it is open; the left wing replaces the file-type buttons when it lists the iPhone's albums."""
+        """The Wings button shows it is open, and the wings already hold Save in / Send to."""
         on = self.wings
         self.wings_btn.config(style="Primary.TButton" if on else "Narrow.TButton")
         if on:  # the wings already show Save in / Send to
             self.rows.pack_forget()
         elif not self.rows.winfo_ismapped():
             self.rows.pack(fill="x", after=self.top)
-        if on and self.mode.get() == "receive":
-            self.kind_seg.pack_forget()
-        elif not self.kind_seg.winfo_ismapped():
-            self.kind_seg.pack(side="left", before=self.select_all_cb)
 
     def _open_wings_now(self) -> None:
         self._ensure_wings()
@@ -1335,7 +1341,7 @@ def _cap(text: str) -> str:
 def _apply_scale(scale: float) -> None:
     """Grow the grid's pixel sizes on scaled displays (call before App is built)."""
     global THUMB, PAD, CELL, HEAD_H
-    THUMB, PAD, HEAD_H = round(72 * scale), 0, round(30 * scale)
+    THUMB, PAD, HEAD_H = round(72 * scale), round(2 * scale), round(30 * scale)  # PAD: a gap between tiles, so neighbours stay apart
     CELL = THUMB + 2 * PAD
 
 
