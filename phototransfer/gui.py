@@ -343,7 +343,7 @@ class App:
         pick.pack(side="left", padx=8)
         pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
         self.remote = tk.StringVar(value=DEFAULT_UPLOAD_ROOT)
-        self.remote_label = ttk.Label(row, text=_cap(T("folder name")))
+        self.remote_label = ttk.Label(row, text=_cap(T("name")))
         self.remote_label.pack(side="left")
         ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
         self.send_note = ttk.Label(row, text="", style="Muted.TLabel", foreground=MUTED)
@@ -980,7 +980,7 @@ class App:
     def _send_to_changed(self) -> None:
         app = SEND_TO[self.send_names[self.send_to.get()]]
         self.remote.set(DEFAULT_UPLOAD_ROOT if app is None else "")
-        self.remote_label.config(text=_cap(T("folder name")))
+        self.remote_label.config(text=_cap(T("name")))
         self.send_note.config(text="" if app is None else
                               T("Find them in {app}.", app=self.send_to.get().split(" (")[0]),
                               foreground=MUTED)
@@ -1023,7 +1023,7 @@ class App:
     # ---- Wings panes --------------------------------------------------------------------------
     def _build_albums(self, parent: tk.Frame) -> None:
         """Left pane: the file types as a list with counts (the same filter as the buttons in the normal layout)."""
-        tk.Label(parent, text=T("iPhone"), background=BG, foreground=MUTED,
+        tk.Label(parent, text=T("Send to"), background=BG, foreground=MUTED,
                  font=("Segoe UI", 9, "bold"), anchor="w", padx=14, pady=8).pack(fill="x")
         self.album_list = box = tk.Listbox(parent, background=BG, foreground=TEXT, selectbackground=GREEN, selectforeground="white",
                                            highlightthickness=0, borderwidth=0, activestyle="none", exportselection=False,
@@ -1124,7 +1124,7 @@ class App:
 
     def _build_iphone_dest(self, parent: tk.Frame) -> None:
         """PC to iPhone, right wing: where on the iPhone the files go (the same choice as Send to in the middle)."""
-        tk.Label(parent, text=T("iPhone"), background=BG, foreground=MUTED,
+        tk.Label(parent, text=T("Send to"), background=BG, foreground=MUTED,
                  font=("Segoe UI", 9, "bold"), anchor="w", padx=14, pady=8).pack(fill="x")
         names = list(self.send_names)
         box = tk.Listbox(parent, background=BG, foreground=TEXT, selectbackground=GREEN, selectforeground="white",
