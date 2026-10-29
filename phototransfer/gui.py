@@ -76,7 +76,7 @@ MANUAL = [
     ("p", "Click a day's heading to select all of that day; click it again to unselect the whole day."),
     ("p", "Hold the left button and drag a box to select every picture it touches. Drag a box over pictures that are already selected (or start it on one) to unselect them."),
     ("p", "Drag past the top or bottom of the list to scroll while boxing."),
-    ("p", "Double-click any file to preview it (pictures, videos, music, text, zip contents or its details). The size dropdown beside the language box sets how big the preview is."),
+    ("p", "Double-click or right-click any file to preview it (pictures, videos, music, text, zip contents or its details); right-click also has Open file location for files on this PC. The size dropdown beside the language box sets how big the preview is."),
     ("p", "Ctrl+A selects all shown files, Esc clears the selection. Deselect all (next to Send) clears it too."),
     ("p", "The Delete key removes the selected files: from the iPhone for good on the iPhone to PC tab, or to the Recycle Bin on the PC to iPhone tab. It always asks first."),
     ("h", "File types"),
@@ -387,6 +387,7 @@ class App:
         self.canvas.bind("<B1-Motion>", self._drag)
         self.canvas.bind("<ButtonRelease-1>", self._release)
         self.canvas.bind("<Double-Button-1>", lambda e: (self._press(e), self._open_preview(e)))  # the two clicks cancel out
+        self.canvas.bind("<Button-3>", self._context_menu)
         self.canvas.bind("<Motion>", self._motion)
         self.canvas.bind("<Leave>", lambda _e: self._hide_tip(reset=True))
         self.empty = tk.Frame(self.canvas, background=BG)  # iPhone to PC with nothing listed yet: how to get photos
@@ -747,9 +748,33 @@ class App:
     def _open_preview(self, e: tk.Event) -> None:
         """Double-click a tile: a larger picture (the first frame for a video), from the phone or from this PC."""
         h = self._hit(e)
+        if h and h[4] == "cell":
+            self._view(h[5])
+
+    def _context_menu(self, e: tk.Event) -> None:
+        """Right-click a tile: View (same as double-click) and Open file location (files on this PC only)."""
+        h = self._hit(e)
         if not h or h[4] != "cell":
             return
         f, local = h[5], self.mode.get() == "send"
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label=T("View"), command=lambda: self._view(f))
+        menu.add_command(label=T("Open file location"), command=lambda: self._reveal(f.path),
+                         state="normal" if local and os.name == "nt" else "disabled")
+        try:
+            menu.tk_popup(e.x_root, e.y_root)
+        finally:
+            menu.grab_release()
+
+    @staticmethod
+    def _reveal(path: str) -> None:
+        """Open Explorer on the folder with the file highlighted."""
+        import subprocess
+
+        subprocess.Popen(["explorer", "/select,", os.path.normpath(path)])
+
+    def _view(self, f: RemoteFile) -> None:
+        local = self.mode.get() == "send"
         if not local and not self.source:
             return
         win = tk.Toplevel(self.root)
