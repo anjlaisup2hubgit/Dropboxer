@@ -278,11 +278,16 @@ class App:
             area = wintypes.RECT()
             if ctypes.windll.user32.SystemParametersInfoW(0x30, 0, ctypes.byref(area), 0):  # SPI_GETWORKAREA
                 left, top, right, bottom = area.left, area.top, area.right, area.bottom
-        w = min(round(1100 * k), right - left - 20)
-        h = min(round(860 * k), bottom - top - 50)  # 50: the title bar and window borders
+        h = min(round(860 * k), bottom - top - 50, right - left - 20)  # 50: the title bar and window borders
+        w = h  # opens as a square; the wings add width later
         root.geometry(f"{w}x{h}+{left + (right - left - w) // 2}+{top + (bottom - top - h - 40) // 2}")
         set_language(_load_settings().get("lang", "en"))
         self._build()
+        root.update_idletasks()
+        need = min(root.winfo_reqwidth(), right - left - 20)  # a square, unless the header needs more room than that
+        if need > w:
+            w = need
+            root.geometry(f"{w}x{h}+{left + (right - left - w) // 2}+{top + (bottom - top - h - 40) // 2}")
         self._mode_changed()  # PC to iPhone is the starting mode
         root.protocol("WM_DELETE_WINDOW", self._quit)
         root.bind("<Control-a>", lambda e: self._key(e, self.select_all))
@@ -497,13 +502,11 @@ class App:
     def _wing_sizes(self) -> tuple[int, int, int]:
         """Widths of the left wing, the right wing and the middle: full size, or less when the screen is too narrow for all three."""
         k = self.root.winfo_fpixels("1i") / 96
-        left, right, mid = round(210 * k), round(680 * k), self.root.winfo_width()
+        wing, mid = round(480 * k), self.root.winfo_width()
         avail = self.root.winfo_screenwidth() - 20
-        if mid + left + right > avail:
-            f = min(1, max(0.5, (avail - round(800 * k)) / (left + right)))
-            left, right = round(left * f), round(right * f)
-            mid = min(mid, avail - left - right)
-        return left, right, mid
+        if mid + 2 * wing > avail:  # both wings are always the same width, so the window opens evenly
+            wing = max(round(240 * k), (avail - mid) // 2)
+        return wing, wing, mid
 
     def _ensure_wings(self) -> None:
         """Fill the wings the first time they open: albums on the left, the queue and the PC folders on the right."""
@@ -517,19 +520,18 @@ class App:
             place["pack" if "side" in place else "grid"](f)
             build(f)
 
-        left = tk.Frame(self.wing_l, background=BG, width=1, height=1)
-        left.pack_propagate(False)
-        left.pack(side="right", fill="both", expand=True)
-        self._build_albums(left)
-        right = tk.Frame(self.wing_r, background=BG)
-        right.pack(side="left", fill="both", expand=True)
-        right.grid_rowconfigure(0, weight=1)
-        for col, weight, build in ((0, 400, self._build_routes), (1, 280, self._build_explorer)):
-            right.grid_columnconfigure(col, weight=weight, uniform="right")
-            f = tk.Frame(right, background=BG, width=1, height=1)
-            f.pack_propagate(False)
-            f.grid(row=0, column=col, sticky="nsew")
-            build(f)
+        # Left wing: albums and the routes map; right wing: the PC's folders. Equal widths, so the wings open symmetrically.
+        for wing, side, cols in ((self.wing_l, "right", ((0, 170, self._build_albums), (1, 310, self._build_routes))),
+                                 (self.wing_r, "left", ((0, 1, self._build_explorer),))):
+            holder = tk.Frame(wing, background=BG)
+            holder.pack(side=side, fill="both", expand=True)
+            holder.grid_rowconfigure(0, weight=1)
+            for col, weight, build in cols:
+                holder.grid_columnconfigure(col, weight=weight, uniform="wing")
+                f = tk.Frame(holder, background=BG, width=1, height=1)
+                f.pack_propagate(False)
+                f.grid(row=0, column=col, sticky="nsew")
+                build(f)
 
     def _wings_state(self) -> None:
         """What Wings changes in the usual window itself: one Apply changes button, no mode or file-type buttons."""
