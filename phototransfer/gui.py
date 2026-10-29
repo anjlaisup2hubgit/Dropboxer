@@ -149,7 +149,7 @@ class App:
         self.thumb_fails: dict[str, int] = {}
         self.visible: list[RemoteFile] = []
         self.thumb_sem: asyncio.Semaphore | None = None  # created on the loop thread
-        self.failed = False  # the last connection or transfer broke: the button offers Reconnect
+        self.failed = False  # the last connection or transfer broke: the cable watcher reconnects
         self.verb, self.nfiles, self.sizes = "Copying", 0, {}  # for the "3 of 80" progress text
         self.wings = False  # side panes open: the source on the left, the destination on the right
         self.send_scanned = False  # the Pictures folder is previewed the first time PC to iPhone opens
@@ -224,6 +224,8 @@ class App:
                   bordercolor=[("disabled", off if fill else LINE), ("active", hover if fill else RED)])
         s.configure("Seg.Toolbutton", background=PAPER, foreground=TEXT, bordercolor=LINE,
                     lightcolor=PAPER, darkcolor=PAPER, padding=(14, 6), borderwidth=1, relief="solid")
+        s.layout("Seg.Toolbutton", [("Button.border", {"sticky": "nswe", "children": [
+            ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})])  # no dotted focus outline
         s.map("Seg.Toolbutton", background=[("selected", GREEN), ("active", SOFT)],
               foreground=[("selected", "white")], bordercolor=[("selected", GREEN), ("active", GREEN)])
         s.configure("TEntry", fieldbackground=PAPER, foreground=TEXT, insertcolor=TEXT, padding=6)
@@ -350,7 +352,6 @@ class App:
         self.all_ticked = tk.BooleanVar(value=False)
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0))
-        self.connect_btn = ttk.Button(bar, text=T("Reload"), style="Narrow.TButton", width=BTN_W, command=self.connect)  # iPhone to PC, once files are listed
         self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi share"), style="Narrow.TButton", width=BTN_W, command=self.wifi_share)
 
         mid = ttk.Frame(body, padding=(16, 0))
@@ -369,7 +370,7 @@ class App:
         self.canvas.bind("<Motion>", self._motion)
         self.canvas.bind("<Leave>", lambda _e: self._hide_tip(reset=True))
         self.empty = tk.Frame(self.canvas, background=BG)  # iPhone to PC with nothing listed yet: how to get photos
-        for text, command in (("USB-C cable", self.connect), ("Wi-Fi share", self.wifi_share)):
+        for text, command in (("Wi-Fi share", self.wifi_share),):
             ttk.Button(self.empty, text=T(text), style="Primary.TButton", command=command, width=16).pack(side="left", padx=8, ipady=8)
 
         self.status = ttk.Label(body, text="",
@@ -603,6 +604,7 @@ class App:
             if kind:
                 self._kind_badge(x0 + 5, y0 + THUMB - 5 - 18, kind)
             if f.path in self.selected:
+                c.create_rectangle(x0, y0, x0 + THUMB, y0 + THUMB, fill=TICK_BLUE, stipple="gray50", outline="")  # blue filter
                 c.create_rectangle(x0, y0, x0 + THUMB, y0 + THUMB, outline=TICK_BLUE, width=3)
                 r = 13 * THUMB / 200  # blue disc with a white tick, bottom right, like the iPhone's
                 cx, cy = x0 + THUMB - 8 - r, y0 + THUMB - 8 - r
@@ -828,12 +830,9 @@ class App:
             self.copy_btn.config(text=T("Send {n}", n=n) if n else T("Send"), state="normal" if ready and n else "disabled")
         else:
             self.copy_btn.config(text=T("Copy {n}", n=n) if n else T("Copy"), state="normal" if ready and n else "disabled")
-        self.connect_btn.config(text=T("Reconnect") if self.failed else T("Reload"))
         show = self.mode.get() == "receive" and bool(self.all_files)  # otherwise the middle of the list has them
-        for b in (self.connect_btn, self.wifi_btn):
-            b.pack(side="right", padx=(0, 6)) if show else b.pack_forget()
+        self.wifi_btn.pack(side="right", padx=(0, 6)) if show else self.wifi_btn.pack_forget()
         self.cancel_btn.pack(side="left", padx=(8, 0), after=self.copy_btn) if self.busy else self.cancel_btn.pack_forget()
-        self.connect_btn.config(state="disabled" if self.busy else "normal")
 
     def browse(self) -> None:
         d = filedialog.askdirectory(initialdir=self.dest.get() if Path(self.dest.get()).exists() else None)
@@ -846,6 +845,12 @@ class App:
         self._sync_buttons()
         fut = asyncio.run_coroutine_threadsafe(coro, self.loop)
         fut.add_done_callback(lambda f: self.events.put(("error", f.exception())) if f.exception() else None)
+
+    def _drop_source(self) -> None:
+        """The connection broke: let go of it so the cable watcher connects again."""
+        if self.source:
+            asyncio.run_coroutine_threadsafe(self.source.close(), self.loop)
+        self.source = None
 
     def _watch(self) -> None:
         """Look for a cable every couple of seconds: connect when an iPhone appears, let go when it is unplugged."""
@@ -1327,8 +1332,8 @@ class App:
             if self.cancel.is_set():
                 msg += T(" Cancelled; run it again to continue.")
             if s.aborted:
-                self.failed = True
-                msg += T(" Stopped early: {why}. Reconnect, unlock the phone, then Connect and copy again to resume.", why=s.aborted)
+                self._drop_source()
+                msg += T(" Stopped early: {why}. Unlock the phone; it reconnects by itself, then copy again to resume.", why=s.aborted)
             self.status.config(text=msg)
             if s.failed:
                 messagebox.showwarning(T("Some files failed"), "\n".join(f"{r}: {e}" for r, e in s.failed[:10]))
@@ -1342,8 +1347,8 @@ class App:
                 self.status.config(text=T("Unlock your iPhone and tap Trust."))
                 self._sync_buttons()
                 return
-            self.failed = True
-            self.status.config(text=T("{err}. Check the cable, unlock the phone, click Reconnect.", err=f"{type(e).__name__}: {e}"))
+            self._drop_source()
+            self.status.config(text=T("{err}. Check the cable, unlock the phone; it reconnects by itself.", err=f"{type(e).__name__}: {e}"))
             messagebox.showerror(
                 T("Could not complete"),
                 T("{err}\n\nCheck: cable plugged in, phone unlocked, 'Trust This Computer' accepted.", err=f"{type(e).__name__}: {e}"),

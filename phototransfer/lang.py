@@ -50,8 +50,6 @@ VI = {
     "Documents": "Tài liệu",
     "Archives": "Tệp nén",
     "Select all": "Chọn tất cả",
-    "Reload": "Tải lại",
-    "Reconnect": "Kết nối lại",
     "Wi-Fi": "Wi-Fi",
     "Clear dates": "Xóa ngày",
     "Change shared folder": "Đổi thư mục chia sẻ",
@@ -85,16 +83,16 @@ VI = {
     "{verb} {n} ({size}), skipped {skipped} {already}, failed {failed}.":
         "{verb} {n} ({size}), bỏ qua {skipped} ({already}), lỗi {failed}.",
     " Cancelled; run it again to continue.": " Đã dừng; chạy lại để tiếp tục.",
-    " Stopped early: {why}. Reconnect, unlock the phone, then Connect and copy again to resume.":
-        " Dừng giữa chừng: {why}. Kết nối lại, mở khóa điện thoại rồi sao chép lại để tiếp tục.",
+    " Stopped early: {why}. Unlock the phone; it reconnects by itself, then copy again to resume.":
+        " Dừng giữa chừng: {why}. Mở khóa điện thoại; máy tự kết nối lại, rồi sao chép lại để tiếp tục.",
     "Some files failed": "Một số tệp bị lỗi",
     "Nothing to send.": "Không có gì để gửi.",
     "{n} found": "Tìm thấy {n}",
     "{n} found from {lo} to {hi}": "Tìm thấy {n} từ {lo} đến {hi}",
     "Nothing found in {folder}.": "Không tìm thấy gì trong {folder}.",
     "Looking in {folder}…": "Đang tìm trong {folder}…",
-    "{err}. Check the cable, unlock the phone, click Reconnect.":
-        "{err}. Kiểm tra cáp, mở khóa điện thoại, nhấn Kết nối lại.",
+    "{err}. Check the cable, unlock the phone; it reconnects by itself.":
+        "{err}. Kiểm tra cáp, mở khóa điện thoại; máy tự kết nối lại.",
     "Could not complete": "Không hoàn thành được",
     "{err}\n\nCheck: cable plugged in, phone unlocked, 'Trust This Computer' accepted.":
         "{err}\n\nKiểm tra: đã cắm cáp, đã mở khóa điện thoại, đã chọn 'Tin cậy máy tính này'.",
