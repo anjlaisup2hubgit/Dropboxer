@@ -28,7 +28,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m phototransfer send D:\ToPhone               # PC -> phone, into /PhotoTransfer
 .\.venv\Scripts\python.exe -m phototransfer send D:\ToPhone --to /Books   # pick another folder on the phone
 ```
-`send` uploads a file or folder, then reads each file back from the phone and checks SHA-256 (a bad one is deleted). Files already there with the same size are skipped. It keeps the folder layout but cannot set the phone-side timestamp. In the GUI, choose **PC to iPhone**, use **Add files…** / **Folder…**, select, then **Send N** (the folder box sets the destination on the phone; `/DCIM` is refused).
+`send` uploads a file or folder, then reads each file back from the phone and checks SHA-256 (a bad one is deleted). Files already there with the same size are skipped. It keeps the folder layout but cannot set the phone-side timestamp. In the GUI, choose **PC to iPhone**, open **Wings**, double-click a folder or file in the left list, select, then **Send N** (the folder box sets the destination on the phone; `/DCIM` is refused).
 **Limit:** files land in the phone's media storage over USB. They do **not** appear in the Photos app (Apple only allows that through its own sync), so use this to carry files, not to add to your camera roll.
 
 **Wi-Fi (no cable, no app on the phone):**

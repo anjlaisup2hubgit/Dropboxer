@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import calendar
 import json
 import os
 import queue
@@ -10,12 +9,12 @@ import shutil
 import threading
 import tkinter as tk
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from tkinter import filedialog, messagebox, ttk
 
 from .cli import DEFAULT_ROOT, DEFAULT_UPLOAD_ROOT, _human
-from .engine import copy_files, plan_paths, upload_files
+from .engine import copy_files, upload_files
 from .sources.base import RemoteFile, Source
 from .lang import LANGUAGES, T, language, set_language
 from .thumbs import THUMB, audio_to_wav, is_audio, is_image, is_video, is_wav, load_thumb, local_thumb
@@ -53,9 +52,8 @@ MANUAL = [
     ("p", "Drag past the top or bottom of the list to scroll while boxing."),
     ("p", "Double-click a picture to open a larger preview; photos, videos and music play there."),
     ("p", "Ctrl+A selects all shown files, Esc clears the selection. Untick Select all above the list to clear it too."),
-    ("h", "Filters and dates"),
+    ("h", "File types"),
     ("p", "Gallery shows photos and videos together; Music, Documents and Archives show those kinds; All shows everything."),
-    ("p", "From / to keep only files dated in that range. Clear dates clears both. Selecting only counts files that are shown."),
     ("h", "Icons on pictures"),
     ("p", "A small badge in the corner of a tile tells you what kind of file it is. Photos have no badge."),
     ("i", "video", "Video: double-click to play it."),
@@ -63,7 +61,7 @@ MANUAL = [
     ("i", "doc", "Document (PDF, Word, text, e-books…)."),
     ("i", "archive", "Archive or installer (ZIP, RAR, EXE…)."),
     ("h", "PC to iPhone"),
-    ("p", "Add files... picks single files; Folder... lists everything supported inside a folder (nothing is selected yet). Then select and press Send."),
+    ("p", "Open Wings, double-click a folder in the left list to show its files (or a file to add it), select, then press Send."),
     ("p", "Send to: Music cannot be filled over USB. To send music, choose VLC or Documents by Readdle and find the files in that app."),
     ("p", "The Wi-Fi window shares the Save in folder: the phone sees the photos there, and uploads from the phone land there too. Change it in the Wi-Fi window or above."),
     ("p", "Sent files go into the folder named on the iPhone, so they do not appear in the Photos app. Sending into /DCIM is refused because it can confuse Photos."),
@@ -120,109 +118,6 @@ def _save_settings(settings: dict) -> None:
         pass  # remembering the folder is a convenience; never block closing the window
 
 
-class DateField(ttk.Frame):
-    """A date button that opens a month calendar (Mo-Su grid, month arrows, Clear and Today).
-
-    `var` holds the date as YYYY-MM-DD, or "" for no date; `on_change` runs after a pick or Clear.
-    """
-
-    def __init__(self, parent, var: tk.StringVar, placeholder: str, on_change) -> None:
-        super().__init__(parent)
-        self.var, self.placeholder, self.on_change = var, placeholder, on_change
-        self.pop: tk.Toplevel | None = None
-        self.btn = ttk.Button(self, command=self.toggle, style="Narrow.TButton", width=BTN_W)
-        self.btn.pack()
-        var.trace_add("write", lambda *_: self._label())
-        self._label()
-
-    def _label(self) -> None:
-        text = self.var.get()
-        self.btn.config(text=(datetime.strptime(text, "%Y-%m-%d").strftime("%d %b %Y") if text else self.placeholder) + " ▾")
-
-    def toggle(self) -> None:
-        if self.pop:
-            self.close()
-            return
-        try:
-            shown = datetime.strptime(self.var.get(), "%Y-%m-%d")
-        except ValueError:
-            shown = datetime.now()
-        self.year, self.month = shown.year, shown.month
-        self.pop = pop = tk.Toplevel(self)
-        pop.overrideredirect(True)
-        pop.configure(background=LINE, padx=1, pady=1)
-        self.body = tk.Frame(pop, background=PAPER, padx=10, pady=8)
-        self.body.pack()
-        self._draw()
-        pop.update_idletasks()
-        x, y = self.winfo_rootx(), self.winfo_rooty() + self.winfo_height() + 2
-        pop.geometry(f"+{max(0, min(x, self.winfo_screenwidth() - pop.winfo_reqwidth()))}+{y}")
-        pop.bind("<Escape>", lambda _e: self.close())
-        pop.bind("<Button-1>", self._click_away)
-        pop.focus_set()
-        pop.grab_set()
-
-    def _click_away(self, e) -> None:
-        p = self.pop
-        if p and not (p.winfo_rootx() <= e.x_root < p.winfo_rootx() + p.winfo_width()
-                      and p.winfo_rooty() <= e.y_root < p.winfo_rooty() + p.winfo_height()):
-            self.close()
-
-    def close(self) -> None:
-        if self.pop:
-            self.pop.grab_release()
-            self.pop.destroy()
-            self.pop = None
-
-    def _shift(self, months: int) -> None:
-        n = self.year * 12 + self.month - 1 + months
-        self.year, self.month = n // 12, n % 12 + 1
-        self._draw()
-
-    def _pick(self, value: str) -> None:
-        self.close()
-        self.var.set(value)
-        self.on_change()
-
-    def _draw(self) -> None:
-        for w in self.body.winfo_children():
-            w.destroy()
-        font = ("Segoe UI", 10)
-        head = tk.Frame(self.body, background=PAPER)
-        head.pack(fill="x", pady=(0, 6))
-        tk.Label(head, text=datetime(self.year, self.month, 1).strftime("%B %Y") if language() == "en" else T("Month {m} {y}", m=self.month, y=self.year), background=PAPER, foreground=TEXT,
-                 font=("Segoe UI", 10, "bold")).pack(side="left")
-        for arrow, step in (("↓", 1), ("↑", -1)):
-            b = tk.Label(head, text=arrow, background=PAPER, foreground=TEXT, font=("Segoe UI", 13), cursor="hand2", padx=8)
-            b.pack(side="right")
-            b.bind("<Button-1>", lambda _e, s=step: self._shift(s))
-        grid = tk.Frame(self.body, background=PAPER)
-        grid.pack()
-        for c, name in enumerate(("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")):
-            tk.Label(grid, text=T(name), width=4, background=PAPER, foreground=TEXT, font=("Segoe UI", 10, "bold")).grid(row=0, column=c)
-        today, chosen = datetime.now().date(), self.var.get()
-        for i, d in enumerate(calendar.Calendar(0).itermonthdates(self.year, self.month)):
-            inside, sel = d.month == self.month, d.isoformat() == chosen
-            cell = tk.Label(grid, text=str(d.day), width=4, font=font, cursor="hand2",
-                            background=GREEN if sel else PAPER, foreground="white" if sel else TEXT if inside else "#aab4bf",
-                            highlightthickness=1, highlightbackground=GREEN_DARK if d == today and not sel else cell_bg(sel))
-            cell.grid(row=1 + i // 7, column=i % 7, pady=1)
-            cell.bind("<Button-1>", lambda _e, v=d.isoformat(): self._pick(v))
-            if not sel:
-                cell.bind("<Enter>", lambda _e, w=cell: w.config(background=SOFT))
-                cell.bind("<Leave>", lambda _e, w=cell: w.config(background=PAPER))
-        foot = tk.Frame(self.body, background=PAPER)
-        foot.pack(fill="x", pady=(8, 0))
-        for text, side, value in (("Clear", "left", ""), ("Today", "right", today.isoformat())):
-            b = tk.Label(foot, text=T(text), background=PAPER, foreground=GREEN_DARK, font=font, cursor="hand2")
-            b.pack(side=side)
-            b.bind("<Button-1>", lambda _e, v=value: self._pick(v))
-
-
-def cell_bg(selected: bool) -> str:
-    return GREEN if selected else PAPER
-
-
 class App:
     def __init__(self, root: tk.Tk, source_dir: str | None, udid: str | None):
         self.root, self.source_dir, self.udid = root, source_dir, udid
@@ -256,8 +151,6 @@ class App:
         self.thumb_sem: asyncio.Semaphore | None = None  # created on the loop thread
         self.failed = False  # the last connection or transfer broke: the button offers Reconnect
         self.verb, self.nfiles, self.sizes = "Copying", 0, {}  # for the "3 of 80" progress text
-        self.flights: dict[str, list] = {}  # progress path -> [from, to, bytes done, size] for the Wings window
-        self.flight_ends = ("", "")  # where the current batch leaves from and arrives at
         self.wings = False  # side panes open: the source on the left, the destination on the right
         self.send_scanned = False  # the Pictures folder is previewed the first time PC to iPhone opens
 
@@ -291,6 +184,8 @@ class App:
         root.bind("<Control-a>", lambda e: self._key(e, self.select_all))
         root.bind("<Escape>", lambda e: self._key(e, self.clear_selection))
         root.after(POLL_MS, self._poll)
+        self.scanning = self.auto = False  # auto: the running connect was started by the cable watcher, so it fails quietly
+        root.after(500, self._watch)
 
     # ---- layout -------------------------------------------------------------------------------
     def _style(self) -> None:
@@ -319,7 +214,7 @@ class App:
                     darkcolor=PAPER, borderwidth=1, padding=(14, 6), relief="solid")
         s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#aab4bf"), ("active", GREEN_DARK)],
               bordercolor=[("disabled", LINE), ("active", GREEN)])
-        s.configure("Narrow.TButton", padding=(6, 6))  # the date buttons and Clear dates
+        s.configure("Narrow.TButton", padding=(6, 6))
         for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#b5cde8", "white", True),
                                                 ("Danger", PAPER, "#fbeceb", PAPER, RED, False)):
             s.configure(f"{name}.TButton", background=bg, foreground=fg, font=("Segoe UI", 10, "bold"),
@@ -417,8 +312,6 @@ class App:
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
         self.copy_btn = ttk.Button(top, text=T("Copy"), style="Primary.TButton", command=self.primary_action, state="disabled")
         self.copy_btn.pack(side="left", padx=(16, 0))
-        self.add_btn = ttk.Button(top, text=T("Add files…"), style="Narrow.TButton", width=BTN_W, command=self.choose_files)  # PC to iPhone only
-        self.folder_btn = ttk.Button(top, text=T("Folder…"), style="Narrow.TButton", width=BTN_W, command=self.send_folder)  # PC to iPhone only
         self.cancel_btn = ttk.Button(top, text=T("Stop"), style="Danger.TButton", command=self.cancel.set)
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
@@ -457,13 +350,8 @@ class App:
         self.all_ticked = tk.BooleanVar(value=False)
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0))
-        self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
         self.connect_btn = ttk.Button(bar, text=T("Reload"), style="Narrow.TButton", width=BTN_W, command=self.connect)  # iPhone to PC, once files are listed
         self.wifi_btn = ttk.Button(bar, text=T("Wi-Fi share"), style="Narrow.TButton", width=BTN_W, command=self.wifi_share)
-        ttk.Button(bar, text=T("Clear dates"), style="Narrow.TButton", width=BTN_W, command=self.clear_dates).pack(side="right")
-        for var, text, hint in ((self.date_to, T("to"), T("Any date")), (self.date_from, T("From"), T("Any date"))):
-            DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
-            ttk.Label(bar, text=text).pack(side="right", padx=(10, 0))
 
         mid = ttk.Frame(body, padding=(16, 0))
         mid.pack(fill="both", expand=True)
@@ -511,18 +399,12 @@ class App:
         if self._wings_built:
             return
         self._wings_built = True
-        k = self.root.winfo_fpixels("1i") / 96
         self.left_slot = tk.Frame(self.wing_l, background=BG)
         self.left_slot.pack(side="right", fill="both", expand=True)
         right = tk.Frame(self.wing_r, background=BG)
         right.pack(side="left", fill="both", expand=True)
-        routes = tk.Frame(right, background=BG, height=round(300 * k))
-        routes.pack(side="bottom", fill="x")
-        routes.pack_propagate(False)
-        tk.Frame(right, height=1, background=LINE).pack(side="bottom", fill="x")
         self.right_slot = tk.Frame(right, background=BG)
         self.right_slot.pack(fill="both", expand=True)
-        self._build_routes(routes)
         self._fill_wings()
 
     def _fill_wings(self) -> None:
@@ -604,14 +486,11 @@ class App:
 
     def _rebuild(self) -> None:
         mode, kind = self.mode.get(), self.kind.get()
-        dates = self.date_from.get(), self.date_to.get()
         for w in self.root.winfo_children():
             w.destroy()
         self._build()
         self.mode.set(mode)
         self.kind.set(kind)
-        self.date_from.set(dates[0])
-        self.date_to.set(dates[1])
         self._mode_changed(keep=True)
 
     def _mode_changed(self, keep: bool = False) -> None:
@@ -623,8 +502,6 @@ class App:
         if sending:
             self.dest_row.pack_forget()
             self.remote_row.pack(fill="x")
-            self.folder_btn.pack(side="right", padx=(6, 0), before=self.count)  # right edge, above the date boxes
-            self.add_btn.pack(side="right", padx=(6, 0), before=self.count)
             if not self.all_files and not self.send_scanned:  # first visit: preview the Pictures folder
                 self.send_scanned = True
                 self._show_folder(Path.home() / "Pictures")
@@ -633,8 +510,6 @@ class App:
         else:
             self.remote_row.pack_forget()
             self.dest_row.pack(fill="x")
-            self.folder_btn.pack_forget()
-            self.add_btn.pack_forget()
             self.status.config(text="" if self.all_files else T("Unlock your iPhone and tap Trust."))
         self._wings_state()
         self._fill_wings()
@@ -642,35 +517,17 @@ class App:
 
     def primary_action(self) -> None:
         if self.mode.get() == "send":
-            self.send_selected() if self.selected_files() else self.choose_files()
+            self.send_selected()
         else:
             self.start_copy()
 
     # ---- list ---------------------------------------------------------------------------------
-    def _date_bounds(self) -> tuple[float | None, float | None]:
-        """(from, to) as timestamps; 'to' is the start of the day after, so the last day is included."""
-        def parse(text: str) -> datetime | None:
-            return datetime.strptime(text.strip(), "%Y-%m-%d") if text.strip() else None
-
-        lo, hi = parse(self.date_from.get()), parse(self.date_to.get())
-        return (lo.timestamp() if lo else None), ((hi + timedelta(days=1)).timestamp() if hi else None)
-
-    def clear_dates(self) -> None:
-        self.date_from.set("")
-        self.date_to.set("")
-        self._fill()
-
     def _fill(self) -> None:
-        try:
-            lo, hi = self._date_bounds()
-        except ValueError:
-            self.status.config(text=T("Dates must look like 2026-10-26."))
-            return
         exts = KINDS[self.kind.get()]
         self.shown = sorted(
             (f for f in self.all_files
              if (exts is None or Path(f.path).suffix.lower() in exts)
-             and (lo is None or f.mtime >= lo) and (hi is None or f.mtime < hi)),
+             ),
             key=lambda f: f.mtime, reverse=True)
         days: dict[str, list[RemoteFile]] = defaultdict(list)  # insertion order = newest day first
         for f in self.shown:
@@ -713,7 +570,7 @@ class App:
             if self.mode.get() == "receive" and not self.all_files:
                 c.create_window(mid_x, mid_y, window=self.empty)
             else:
-                empty = T("Click Add files… or Folder… to choose what to send.") if self.mode.get() == "send" else T("Nothing here yet.")
+                empty = T("Nothing here yet.")
                 c.create_text(mid_x, mid_y, text=T("No files match these filters.") if self.all_files else empty,
                               fill=MUTED, font=("Segoe UI", 13))
             return
@@ -969,8 +826,6 @@ class App:
         ready = bool(self.source) and not self.busy
         if self.mode.get() == "send":
             self.copy_btn.config(text=T("Send {n}", n=n) if n else T("Send"), state="normal" if ready and n else "disabled")
-            self.add_btn.config(state="disabled" if self.busy else "normal")
-            self.folder_btn.config(state="disabled" if self.busy else "normal")
         else:
             self.copy_btn.config(text=T("Copy {n}", n=n) if n else T("Copy"), state="normal" if ready and n else "disabled")
         self.connect_btn.config(text=T("Reconnect") if self.failed else T("Reload"))
@@ -992,7 +847,24 @@ class App:
         fut = asyncio.run_coroutine_threadsafe(coro, self.loop)
         fut.add_done_callback(lambda f: self.events.put(("error", f.exception())) if f.exception() else None)
 
+    def _watch(self) -> None:
+        """Look for a cable every couple of seconds: connect when an iPhone appears, let go when it is unplugged."""
+        if not self.scanning:
+            self.scanning = True
+            asyncio.run_coroutine_threadsafe(self._scan(), self.loop)
+        self.root.after(2500, self._watch)
+
+    async def _scan(self) -> None:
+        try:
+            from .sources.iphone import list_devices
+
+            n = len(await list_devices())
+        except Exception:
+            n = 0
+        self.events.put(("devices", n))
+
     def connect(self) -> None:
+        self.auto = False
         self.failed = False
         self.status.config(text=T("Connecting…"))
         self._submit(self._connect())
@@ -1021,9 +893,6 @@ class App:
         self.total = sum(f.size for f in files)
         self.done: dict[str, int] = {}
         self.verb, self.nfiles, self.sizes = "Copying", len(files), {}
-        plan = plan_paths(files, DEFAULT_ROOT, True)
-        self.flight_ends = ("iPhone", dest)
-        self.flights = {f.path: [f.path, str(Path(dest) / plan[f.path]), 0, f.size] for f in files}
         self.status.config(text=T("Copying {n} files…", n=len(files)))
         self._submit(self._copy(files, Path(dest)))
 
@@ -1200,67 +1069,6 @@ class App:
             self.kind.set(list(KINDS)[picked[0]])
             self._fill()
 
-    def _build_routes(self, parent: tk.Frame) -> None:
-        """Third pane: where every file of the current batch is leaving from and arriving at."""
-        title = tk.Label(parent, text=T("Pictures"), background=GREEN, foreground="white", font=("Segoe UI", 9, "bold"), padx=8, pady=2)
-        title.pack(anchor="w", padx=8, pady=8)
-        foot = tk.Frame(parent, background=BG)
-        foot.pack(side="bottom", fill="x", padx=8, pady=6)
-        note = ttk.Label(foot, style="Muted.TLabel")
-        note.pack(side="left")
-        detail = tk.Label(parent, background=BG, foreground=TEXT, justify="left", anchor="w", wraplength=360, padx=8, font=("Segoe UI", 9))
-        detail.pack(side="bottom", fill="x")
-        tree = ttk.Treeview(parent, columns=("name", "to", "state"), show="headings", selectmode="browse")
-        for col, text, w in (("name", "File", 120), ("to", "To", 170), ("state", "Progress", 60)):
-            tree.heading(col, text=T(text))
-            tree.column(col, width=w, stretch=col != "state")
-        tree.tag_configure("moving", foreground=GREEN_DARK)
-        tree.tag_configure("done", foreground=MUTED)
-        tree.pack(fill="both", expand=True, padx=8, pady=(6, 0))
-        empty = tk.Label(tree, text=T("No items to display"), background=BG, foreground=TEXT, font=("Segoe UI", 15))
-        shown: dict[str, tuple] = {}  # row id -> what it shows now, so only changed rows are touched
-
-        def show_detail(_e=None) -> None:
-            sel = tree.selection()
-            v = shown.get(sel[0]) if sel else None
-            detail.config(text=f"{T('From')}: {v[3]}\n{T('To')}: {v[1]}" if v else "")
-
-        tree.bind("<<TreeviewSelect>>", show_detail)
-
-        def refresh() -> None:
-            if not tree.winfo_exists():
-                return
-            rows = dict(self.flights)
-            server = getattr(self, "_wifi_server", None)
-            wifi_on = bool(server and getattr(self, "wifi_win", None) and self.wifi_win.winfo_exists())
-            for name in list(server.received) if wifi_on else []:
-                rows[f"wifi:{name}"] = [T("Phone (Wi-Fi)"), str(Path(self.dest.get().strip()) / name), 1, 1]
-            for rid, (src, dst, done, size) in rows.items():
-                state = T("Waiting") if not done else T("Done") if done >= size else f"{100 * done // max(1, size)}%"
-                view = (PurePosixPath(dst.replace("\\", "/")).name, dst, state, src)
-                if shown.get(rid) == view:
-                    continue
-                tags = ("done" if done and done >= size else "moving" if done else "",)
-                if rid in shown:
-                    tree.item(rid, values=view[:3], tags=tags)
-                else:
-                    tree.insert("", "end", iid=rid, values=view[:3], tags=tags)
-                shown[rid] = view
-            for rid in [r for r in shown if r not in rows]:  # a new batch replaced the old one
-                tree.delete(rid)
-                del shown[rid]
-            title.config(text=f"{T('Pictures')} ({len(rows)})")
-            show_detail()
-            if rows:
-                empty.place_forget()
-            else:
-                empty.place(relx=0.5, rely=0.4, anchor="center")
-            arrived = sum(1 for r in rows.values() if r[2] >= r[3])
-            note.config(text=T("{done} of {n} arrived", done=arrived, n=len(rows)) if rows else "")
-            tree.after(80 if self.busy else 400, refresh)
-
-        refresh()
-
     def _build_explorer(self, parent: tk.Frame, source: bool) -> None:
         """This PC's folders. As the destination (iPhone to PC) picking a folder sets Save in; as the source (PC to iPhone)
         double-clicking a folder lists its files in the middle, and double-clicking a file adds it."""
@@ -1350,20 +1158,6 @@ class App:
         ttk.Entry(row, textvariable=self.remote).pack(fill="x", pady=(2, 8))
         ttk.Label(row, text="⚠ " + T("Won't show in Photos."), style="Muted.TLabel", foreground=RED).pack(anchor="w")
 
-    def choose_files(self) -> None:
-        names = filedialog.askopenfilenames(title=T("Choose files to send to the phone"), filetypes=[
-            (T("All files"), "*.*"), (T("Music"), " ".join(f"*{e}" for e in sorted(AUDIO))),
-            (T("Documents"), " ".join(f"*{e}" for e in sorted(DOCS))),
-            (T("Archives"), " ".join(f"*{e}" for e in sorted(ARCHIVES))),
-            (T("Photos and videos"), " ".join(f"*{e}" for e in sorted(PHOTOS | VIDEOS)))])
-        if names:
-            self._add_to_send([Path(n) for n in names])
-
-    def send_folder(self) -> None:
-        d = filedialog.askdirectory(title=T("Choose a folder to send to the phone"))
-        if d:
-            self._show_folder(Path(d))
-
     def _show_folder(self, folder: Path, only: bool = False) -> None:
         """List the photos, videos, music and documents inside a folder (nothing ticked yet) so they can be previewed and picked.
         only: show just the files directly in that folder, replacing the list (the Explorer acts as a filter)."""
@@ -1426,14 +1220,6 @@ class App:
         self.total = sum(p.stat().st_size for p in paths)
         self.done = {}
         self.verb, self.nfiles, self.sizes = "Sending", len(paths), {}
-        app = SEND_TO[self.send_names[self.send_to.get()]]
-        base = "" if remote == "/" and app else remote
-        where = self.send_to.get().split(" (")[0] if app else "iPhone"
-        self.flight_ends = (T("This PC"), f"{where}: {remote}")
-        self.flights = {}
-        for p in paths:
-            target = f"{base.rstrip('/')}/{p.relative_to(root).as_posix()}"
-            self.flights[target] = [str(p), f"{where}: {target}", 0, p.stat().st_size]
         self.status.config(text=T("Sending {n} files to {remote}…", n=len(paths), remote=remote))
         self._submit(self._send(paths, root, remote))
 
@@ -1462,6 +1248,7 @@ class App:
     def _handle(self, ev: tuple) -> None:
         kind = ev[0]
         if kind == "listed":
+            self.auto = False
             if self.mode.get() == "send":  # the PC to iPhone list on screen is not replaced
                 self._stash["receive"] = (ev[1], set())
                 self.busy = False
@@ -1480,6 +1267,21 @@ class App:
                                      else T("{n} found", n=len(ev[1])))
                                if self.mode.get() == "receive" else "")
             self._sync_buttons()
+        elif kind == "devices":
+            self.scanning = False
+            plugged = ev[1] or bool(self.source_dir)
+            if plugged and not self.source and not self.busy:
+                self.connect()
+                self.auto = True
+            elif not plugged and self.source and not self.busy:
+                asyncio.run_coroutine_threadsafe(self.source.close(), self.loop)
+                self.source, self.failed = None, False
+                self._stash["receive"] = ([], set())
+                if self.mode.get() == "receive":
+                    self.all_files, self.selected = [], set()
+                    self._fill()
+                self.status.config(text=T("Plug in your iPhone with the cable."))
+                self._sync_buttons()
         elif kind == "folder":
             _, files, folder, only = ev
             if only and self.mode.get() == "send":
@@ -1509,8 +1311,6 @@ class App:
         elif kind == "progress":
             _, path, done, total = ev
             self.done[path] = done  # bytes done per file; the bar sums them
-            if path in self.flights:
-                self.flights[path][2:] = [done, total]
             self.sizes[path] = total
             pct = 100 * sum(self.done.values()) / max(1, self.total)
             self._set_progress(pct)
@@ -1537,6 +1337,11 @@ class App:
         elif kind == "error":
             e = ev[1]
             self.busy = False
+            if self.auto:  # the watcher tries again on its next look; no pop-up for a phone that is still locked
+                self.auto, self.failed = False, False
+                self.status.config(text=T("Unlock your iPhone and tap Trust."))
+                self._sync_buttons()
+                return
             self.failed = True
             self.status.config(text=T("{err}. Check the cable, unlock the phone, click Reconnect.", err=f"{type(e).__name__}: {e}"))
             messagebox.showerror(
