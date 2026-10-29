@@ -1596,6 +1596,7 @@ def _apply_scale(scale: float) -> None:
 
 
 def run(source_dir: str | None = None, udid: str | None = None) -> int:
+    setup_log()
     try:
         import ctypes
 
