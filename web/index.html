@@ -1,30 +1,32 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#2b6cb0">
-<title>Dropboxer (web)</title>
+<title>Dropboxer</title>
 <style>
-body{font-family:Nunito,ui-rounded,system-ui,sans-serif;margin:0 auto;padding:16px;max-width:760px;background:#eef3f8;color:#1f2933}
-h2{font-size:1.5rem;font-weight:800;margin:22px 0 10px}
-.up{background:#fff;border:1px solid #d5dfea;border-radius:10px;padding:14px;margin-bottom:14px;overflow:hidden}
-.up::before{content:"";display:block;height:72px;margin:-14px -14px 12px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Crect width='40' height='20' fill='%23a9c3e0'/%3E%3Cpath d='M0 0h40L20 20z' fill='%23bcd1e8'/%3E%3C/svg%3E")}
-.up:nth-of-type(2n)::before{background:repeating-linear-gradient(135deg,#8fb0d4 0 10px,#9dbadb 10px 20px)}
-.up:nth-of-type(3n)::before{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23d3e1f0'/%3E%3Cpath d='M0 0h20a20 20 0 0 1-20 20zM40 40H20a20 20 0 0 1 20-20z' fill='%23c0d3e8'/%3E%3C/svg%3E")}
-.up:nth-of-type(4n)::before{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Crect width='40' height='20' fill='%23dbe8f5'/%3E%3Cpath d='M0 0h40L20 20z' fill='%23e8f1fa'/%3E%3C/svg%3E")}
+body{font-family:"Segoe UI",system-ui,sans-serif;margin:0;background:#eef3f8;color:#1f2933}
+header{background:#e1e9f2;border-bottom:1px solid #c9d5e2;padding:12px 16px}
+header h1{margin:0 auto;max-width:760px;font-size:17pt;font-weight:700;color:#1f5290}
+#zig{position:relative;height:18px;background:#a9c3e0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18'%3E%3Cpath d='M0 0h36L18 18z' fill='%23bcd1e8'/%3E%3C/svg%3E") 0 0/36px 18px}
+#zig i{position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:#1f5290 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18'%3E%3Cpath d='M0 0h36L18 18z' fill='%232b6cb0'/%3E%3C/svg%3E") 0 0/36px 18px;transition:width .2s}
+main{margin:0 auto;padding:0 16px 24px;max-width:760px}
+h2{font-size:1.1rem;font-weight:700;margin:22px 0 10px}
+.up{background:#f8fafd;border:1px solid #c9d5e2;border-radius:6px;padding:14px;margin-bottom:14px}
 button,input[type=file]{font-size:1rem;font-family:inherit}
-button{padding:8px 16px;border-radius:6px;border:1.5px solid #2b6cb0;background:#fff;color:#2b6cb0;cursor:pointer;font-weight:600}
-button:hover{background:#eaf2fb}
+button{padding:8px 16px;border-radius:6px;border:1px solid #c9d5e2;background:#f8fafd;color:#1f2933;cursor:pointer;font-weight:600}
+button:hover{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}
 button.pri{background:#2b6cb0;border-color:#2b6cb0;color:#fff} button.pri:hover{background:#1f5290;color:#fff}
-button.danger{color:#b5352b;border-color:#b5352b} button.danger:hover{background:#fdeceb;color:#b5352b}
+button.danger{color:#b5352b;border-color:#e3c4c0} button.danger:hover{background:#fdeceb;color:#b5352b}
 button:disabled{opacity:.4}
 small,.muted{color:#66727f} .ok{color:#2e7d46} .bad{color:#b5352b}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
-.grid a{display:block;aspect-ratio:1;background:#fff;border:1px solid #d5dfea;border-radius:10px;overflow:hidden;position:relative;color:#1f2933;text-decoration:none}
+.grid a{display:block;aspect-ratio:1;background:#fff;border:1px solid #c9d5e2;border-radius:6px;overflow:hidden;position:relative;color:#1f2933;text-decoration:none}
 .grid img,.grid video{width:100%;height:100%;object-fit:cover}
-#qr{background:#fff;border:1px solid #d5dfea;display:inline-block;padding:10px;border-radius:12px;margin:12px 0}
+#qr{background:#fff;border:1px solid #c9d5e2;display:inline-block;padding:10px;border-radius:6px;margin:12px 0}
 #qr svg{display:block;width:240px;height:240px}
 #log div,#plog div{font-size:.85rem;margin:4px 0;color:#66727f} #log div.ok,#plog div.ok{color:#2e7d46} #log div.bad,#plog div.bad{color:#b5352b}
 code{word-break:break-all;font-size:.8rem;color:#66727f}
 </style></head><body>
+<header><h1>Dropboxer</h1></header><div id="zig"><i></i></div><main>
 <div id="pc" hidden>
   <h2>Receive on this PC</h2>
   <div class="up">
@@ -50,9 +52,10 @@ code{word-break:break-all;font-size:.8rem;color:#66727f}
     <div id="total" class="muted"></div><div id="plog"></div>
   </div>
 </div>
+</main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
-const $=id=>document.getElementById(id), sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const $=id=>document.getElementById(id), prog=p=>$('zig').style.setProperty('--p',Math.min(100,p)+'%'), sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]};
 const PIECE=32*1024, HIGH=4*1024*1024;
 const b64u=u8=>btoa(String.fromCharCode(...u8)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -130,7 +133,7 @@ function receiver(ch,dir){
         ch.send(JSON.stringify({t:ok?'ok':'err',id:m.id}));});}
     }else{
       const buf=e.data;queue=queue.then(async()=>{if(!w)return;await w.write(buf);got+=buf.byteLength;
-        if(row&&size)row.textContent=name+' … '+Math.floor(100*got/size)+'%';});
+        if(row&&size){row.textContent=name+' … '+Math.floor(100*got/size)+'%';prog(100*got/size);}});
     }};
 }
 
@@ -178,7 +181,7 @@ function sender(ch){
           }
           off+=blk.byteLength;
           d.textContent=f.name+' … '+Math.floor(100*off/Math.max(1,f.size))+'%';
-          $('total').textContent='Total: '+Math.floor(100*(done+off)/Math.max(1,all))+'%';
+          $('total').textContent='Total: '+Math.floor(100*(done+off)/Math.max(1,all))+'%';prog(100*(done+off)/Math.max(1,all));
         }
         if(stopped){ch.send(JSON.stringify({t:'end',id}));d.textContent=f.name+' stopped';d.className='bad';break;}
         ch.send(JSON.stringify({t:'end',id}));
