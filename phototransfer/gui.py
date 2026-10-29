@@ -258,6 +258,8 @@ class App:
         self.verb, self.nfiles, self.sizes = "Copying", 0, {}  # for the "3 of 80" progress text
         self.flights: dict[str, list] = {}  # progress path -> [from, to, bytes done, size] for the Wings window
         self.flight_ends = ("", "")  # where the current batch leaves from and arrives at
+        self.queue: list[Path] = []  # Wings: PC files waiting to be sent to the iPhone by Apply changes
+        self.send_after = False  # Apply changes copies first, then sends the queue
         self.wings = False  # the four-pane layout: albums, files, routes, PC folders
         self.send_scanned = False  # the Pictures folder is previewed the first time PC to iPhone opens
 
@@ -394,7 +396,7 @@ class App:
         top.pack(fill="x")
         seg = ttk.Frame(top)
         seg.pack(side="left")
-        for text, value in (("PC to iPhone", "send"), ("iPhone to PC", "receive")):
+        for text, value in (() if self.wings else (("PC to iPhone", "send"), ("iPhone to PC", "receive"))):  # Wings does both at once
             ttk.Radiobutton(seg, text=T(text), value=value, variable=self.mode, style="Seg.Toolbutton",
                             command=self._mode_changed).pack(side="left", padx=(0, 2))
         self.copy_btn = ttk.Button(top, text=T("Copy"), style="Primary.TButton", command=self.primary_action, state="disabled")
@@ -488,7 +490,11 @@ class App:
 
     def toggle_wings(self) -> None:
         """Wings: turn the window into the four-pane layout (and back): albums, files, routes, PC folders."""
+        _save_settings({**_load_settings(), "dest": self.dest.get().strip()})  # the rebuild reads Save in back from here
         self.wings = not self.wings
+        if self.wings and self.mode.get() == "send":  # the file grid is the iPhone's; PC files go through the queue
+            self.mode.set("receive")
+            self._mode_changed()
         k = self.root.winfo_fpixels("1i") / 96
         width = min(round((1560 if self.wings else 1100) * k), self.root.winfo_screenwidth() - 20)
         self.root.geometry(f"{width}x{self.root.winfo_height()}+{max(0, (self.root.winfo_screenwidth() - width) // 2)}+{self.root.winfo_y()}")
@@ -525,12 +531,17 @@ class App:
         else:
             self.remote_row.pack_forget()
             self.dest_row.pack(fill="x")
+            if self.wings:  # both ways at once: Save in for what comes from the iPhone, Send to for the queue
+                self.remote_row.pack(fill="x")
             self.folder_btn.pack_forget()
             self.add_btn.pack_forget()
             self.status.config(text="" if self.all_files else T("Unlock your iPhone and tap Trust."))
         self._fill()
 
     def primary_action(self) -> None:
+        if self.wings:
+            self.apply_changes()
+            return
         if self.mode.get() == "send":
             self.send_selected() if self.selected_files() else self.choose_files()
         else:
@@ -864,6 +875,10 @@ class App:
             self.folder_btn.config(state="disabled" if self.busy else "normal")
         else:
             self.copy_btn.config(text=T("Copy {n}", n=n) if n else T("Copy"), state="normal" if ready and n else "disabled")
+        if self.wings:  # one button for both directions, like Apply changes in the reference
+            total = n + len(self.queue)
+            self.copy_btn.config(text=T("Apply changes") + (f" ({total})" if total else ""),
+                                 state="normal" if ready and total else "disabled")
         self.connect_btn.config(text=T("Reconnect") if self.failed else T("Reload"))
         show = self.mode.get() == "receive" and bool(self.all_files)  # otherwise the middle of the list has them
         for b in (self.connect_btn, self.wifi_btn):
@@ -1067,7 +1082,7 @@ class App:
     # ---- Wings panes --------------------------------------------------------------------------
     def _build_albums(self, parent: tk.Frame) -> None:
         """Left pane: the file types as a list with counts (the same filter as the buttons in the normal layout)."""
-        tk.Label(parent, text=T("iPhone") if self.mode.get() == "receive" else T("This PC"), background=BG, foreground=MUTED,
+        tk.Label(parent, text=T("iPhone"), background=BG, foreground=MUTED,
                  font=("Segoe UI", 9, "bold"), anchor="w", padx=14, pady=8).pack(fill="x")
         self.album_list = box = tk.Listbox(parent, background=BG, foreground=TEXT, selectbackground=GREEN, selectforeground="white",
                                            highlightthickness=0, borderwidth=0, activestyle="none", exportselection=False,
@@ -1093,7 +1108,8 @@ class App:
 
     def _build_routes(self, parent: tk.Frame) -> None:
         """Third pane: where every file of the current batch is leaving from and arriving at."""
-        tk.Label(parent, text=T("Routes"), background=GREEN, foreground="white", font=("Segoe UI", 9, "bold"), padx=8, pady=2).pack(anchor="w", padx=8, pady=8)
+        title = tk.Label(parent, text=T("Pictures"), background=GREEN, foreground="white", font=("Segoe UI", 9, "bold"), padx=8, pady=2)
+        title.pack(anchor="w", padx=8, pady=8)
         sky = tk.Canvas(parent, height=90, background=BG, highlightthickness=0)
         sky.pack(fill="x", padx=8)
         foot = tk.Frame(parent, background=BG)
@@ -1117,6 +1133,8 @@ class App:
             """The copy on this PC that a row stands for: the saved file when receiving, the source when sending."""
             if row.startswith("wifi:"):
                 return Path(self.dest.get().strip()) / row[5:]
+            if row.startswith("q:"):
+                return Path(row[2:])
             f = self.flights.get(row)
             return Path(f[1] if self.flight_ends[0] == "iPhone" else f[0]) if f else None
 
@@ -1140,9 +1158,17 @@ class App:
             v = shown.get(sel[0]) if sel else None
             detail.config(text=f"{T('From')}: {v[3]}\n{T('To')}: {v[1]}" if v else "")
 
+        def remove(_e=None) -> None:
+            gone = {Path(r[2:]) for r in tree.selection() if r.startswith("q:")}
+            if gone:
+                self.queue[:] = [p for p in self.queue if p not in gone]
+                self._sync_buttons()
+
         tree.bind("<Double-Button-1>", reveal)
         tree.bind("<<TreeviewSelect>>", show_detail)
+        tree.bind("<Delete>", remove)
         ttk.Button(foot, text=T("Show on this PC"), style="Narrow.TButton", width=BTN_W, command=reveal).pack(side="right")
+        ttk.Button(foot, text=T("Remove"), style="Narrow.TButton", width=BTN_W, command=remove).pack(side="right", padx=(0, 6))
 
         def draw(moving: bool, left: str, right: str, wifi: bool) -> None:
             sky.delete("all")
@@ -1168,10 +1194,17 @@ class App:
             rows = dict(self.flights)
             server = getattr(self, "_wifi_server", None)
             wifi_on = bool(server and getattr(self, "wifi_win", None) and self.wifi_win.winfo_exists())
+            remote = "/" + self.remote.get().strip().strip("/")
+            where = self.send_to.get().split(" (")[0] if SEND_TO[self.send_names[self.send_to.get()]] else "iPhone"
+            for p in self.queue:  # waiting for Apply changes
+                try:
+                    rows.setdefault(f"q:{p}", [str(p), f"{where}: {remote.rstrip('/')}/{p.name}", 0, p.stat().st_size or 1])
+                except OSError:
+                    pass
             for name in list(server.received) if wifi_on else []:
                 rows[f"wifi:{name}"] = [T("Phone (Wi-Fi)"), str(Path(self.dest.get().strip()) / name), 1, 1]
             for rid, (src, dst, done, size) in rows.items():
-                state = T("Waiting") if not done else T("Done") if done >= size else f"{100 * done // max(1, size)}%"
+                state = T("Queued") if rid.startswith("q:") else T("Waiting") if not done else T("Done") if done >= size else f"{100 * done // max(1, size)}%"
                 view = (PurePosixPath(dst.replace("\\", "/")).name, dst, state, src)
                 if shown.get(rid) == view:
                     continue
@@ -1184,6 +1217,7 @@ class App:
             for rid in [r for r in shown if r not in rows]:  # a new batch replaced the old one
                 tree.delete(rid)
                 del shown[rid]
+            title.config(text=f"{T('Pictures')} ({len(rows)})")
             left, right = self.flight_ends
             if wifi_on and not self.flights:
                 left, right = T("Phone (Wi-Fi)"), self.dest.get().strip()
@@ -1200,7 +1234,7 @@ class App:
         refresh()
 
     def _build_explorer(self, parent: tk.Frame) -> None:
-        """Right pane: the folders of this PC. Picking one sets Save in; in PC to iPhone, double-click lists its files."""
+        """Right pane: this PC. Picking a folder sets Save in; double-click a file or folder to queue it for the iPhone."""
         head = tk.Frame(parent, background=BG)
         head.pack(fill="x", padx=8, pady=8)
         tk.Label(head, text=T("Explorer"), background=BG, foreground=TEXT, font=("Segoe UI", 10)).pack(side="left")
@@ -1215,10 +1249,14 @@ class App:
         tree.pack(fill="both", expand=True)
         paths: dict[str, Path] = {}
 
+        sendable = PHOTOS | VIDEOS | AUDIO | DOCS | ARCHIVES
+
         def add(parent_id: str, path: Path, label: str | None = None) -> str:
-            iid = tree.insert(parent_id, "end", text="  " + (label or path.name or str(path)), open=False)
+            folder = path.is_dir()
+            iid = tree.insert(parent_id, "end", text="  " + ("" if folder else "▫ ") + (label or path.name or str(path)), open=False)
             paths[iid] = path
-            tree.insert(iid, "end", text="…")  # a placeholder so the arrow shows; replaced on first open
+            if folder:
+                tree.insert(iid, "end", text="…")  # a placeholder so the arrow shows; replaced on first open
             return iid
 
         def opened(_e=None) -> None:
@@ -1228,7 +1266,8 @@ class App:
                 return
             tree.delete(kids[0])
             try:
-                subs = sorted((d for d in paths[iid].iterdir() if d.is_dir()), key=lambda d: d.name.lower())
+                items = sorted(paths[iid].iterdir(), key=lambda d: d.name.lower())
+                subs = [d for d in items if d.is_dir()] + [d for d in items if d.is_file() and d.suffix.lower() in sendable][:500]
             except OSError:
                 subs = []
             for d in subs:
@@ -1239,8 +1278,8 @@ class App:
             path = paths.get(sel[0]) if sel else None
             if path is None:
                 return
-            if self.mode.get() == "receive":
-                self.dest.set(str(path))
+            if path.is_dir():
+                self.dest.set(str(path))  # where files from the iPhone are saved
             try:
                 use = shutil.disk_usage(path)
                 foot.config(text=f"{T('Free')}: {_human(use.free)}  {T('Total')}: {_human(use.total)}")
@@ -1249,8 +1288,26 @@ class App:
 
         def listing(_e=None) -> None:
             sel = tree.selection()
-            if sel and sel[0] in paths and self.mode.get() == "send":
-                self._show_folder(paths[sel[0]])
+            if not sel or sel[0] not in paths:
+                return
+            path = paths[sel[0]]
+            if path.is_file():
+                self.events.put(("queue", [path], path.parent))
+                return
+
+            def scan() -> None:  # a folder queues every photo, video, song, document and archive inside it
+                found = []
+                try:
+                    for q in path.rglob("*"):
+                        if q.suffix.lower() in sendable and q.is_file():
+                            found.append(q)
+                            if len(found) >= MAX_PREVIEW:
+                                break
+                except OSError:
+                    pass
+                self.events.put(("queue", found, path))
+
+            threading.Thread(target=scan, daemon=True).start()
 
         pc = tree.insert("", "end", text="  " + T("This PC"), open=True)
         home = Path.home()
@@ -1299,6 +1356,11 @@ class App:
 
     def _add_to_send(self, paths: list[Path], tick: bool = True) -> None:
         """Put files on the PC to iPhone list (ticked or not), so they can be checked before sending."""
+        if self.wings:  # the grid stays on the iPhone; PC files wait in the queue for Apply changes
+            if tick:
+                self.queue.extend(p for p in paths if p not in self.queue)
+                self._sync_buttons()
+            return
         if self.mode.get() != "send":
             self.mode.set("send")
             self._mode_changed()
@@ -1316,6 +1378,27 @@ class App:
                 added += 1
         self._fill()
         self.status.config(text="")
+
+    def apply_changes(self) -> None:
+        """Wings: copy what is ticked on the iPhone to Save in, then send the queued PC files to the iPhone."""
+        if self.selected_files():
+            self.send_after = bool(self.queue)
+            self.start_copy()
+        else:
+            self.send_queue()
+
+    def send_queue(self) -> None:
+        paths = [p for p in self.queue if p.exists()]
+        self.queue.clear()
+        if not paths:
+            self._sync_buttons()
+            return
+        try:
+            root = Path(os.path.commonpath([str(p.parent) for p in paths]))
+        except ValueError:
+            messagebox.showerror(T("Different drives"), T("Send files from one drive at a time: untick the others."))
+            return
+        self._start_send(paths, root)
 
     def send_selected(self) -> None:
         paths = [Path(f.path) for f in self.selected_files()]
@@ -1393,6 +1476,11 @@ class App:
                                      else T("{n} found", n=len(ev[1])))
                                if self.mode.get() == "receive" else "")
             self._sync_buttons()
+        elif kind == "queue":
+            have = set(self.queue)
+            self.queue.extend(p for p in ev[1] if p not in have)
+            self.status.config(text=T("{n} files waiting to be sent", n=len(self.queue)) if ev[1] else T("Nothing found in {folder}.", folder=ev[2]))
+            self._sync_buttons()
         elif kind == "folder":
             _, files, folder = ev
             self._add_to_send(files, tick=False)
@@ -1436,6 +1524,9 @@ class App:
                     size=_human(s.bytes_copied), skipped=len(s.skipped), already=T(already), failed=len(s.failed))
             if self.cancel.is_set():
                 msg += T(" Cancelled; run it again to continue.")
+            after, self.send_after = self.send_after, False
+            if after and not (s.aborted or self.cancel.is_set()):
+                self.root.after(300, self.send_queue)
             if s.aborted:
                 self.failed = True
                 msg += T(" Stopped early: {why}. Reconnect, unlock the phone, then Connect and copy again to resume.", why=s.aborted)
