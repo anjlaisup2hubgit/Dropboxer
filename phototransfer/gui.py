@@ -215,6 +215,8 @@ class App:
                     darkcolor=PAPER, borderwidth=1, padding=(14, 6), relief="solid")
         s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#aab4bf"), ("active", GREEN_DARK)],
               bordercolor=[("disabled", LINE), ("active", GREEN)])
+        s.layout("TButton", [("Button.border", {"sticky": "nswe", "children": [
+            ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})])  # no focus outline
         s.configure("Narrow.TButton", padding=(6, 6))
         for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#b5cde8", "white", True),
                                                 ("Danger", PAPER, "#fbeceb", PAPER, RED, False)):
@@ -335,7 +337,7 @@ class App:
         pick.pack(side="left", padx=8)
         pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
         self.remote = tk.StringVar(value=DEFAULT_UPLOAD_ROOT)
-        self.remote_label = ttk.Label(row, text=T("folder"))
+        self.remote_label = ttk.Label(row, text=_cap(T("folder")))
         self.remote_label.pack(side="left")
         ttk.Entry(row, textvariable=self.remote, width=16).pack(side="left", padx=8)
         self.send_note = ttk.Label(row, text="⚠ " + T("Won't show in Photos."), style="Muted.TLabel", foreground=RED)
@@ -354,7 +356,7 @@ class App:
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0))
 
-        mid = ttk.Frame(body, padding=(16, 0))
+        mid = ttk.Frame(body, padding=(16, 0, 0, 0))
         mid.pack(fill="both", expand=True)
         self.canvas = tk.Canvas(mid, background=BG, highlightthickness=0, yscrollincrement=SCROLL_UNIT)
         sb = ttk.Scrollbar(mid, command=self.canvas.yview)
@@ -969,7 +971,7 @@ class App:
     def _send_to_changed(self) -> None:
         app = SEND_TO[self.send_names[self.send_to.get()]]
         self.remote.set(DEFAULT_UPLOAD_ROOT if app is None else "")
-        self.remote_label.config(text=T("folder") if app is None else T("subfolder (optional)"))
+        self.remote_label.config(text=_cap(T("folder") if app is None else T("subfolder (optional)")))
         self.send_note.config(text="⚠ " + T("Won't show in Photos.") if app is None else
                               T("Find them in {app}.", app=self.send_to.get().split(" (")[0]),
                               foreground=RED if app is None else MUTED)
@@ -1035,9 +1037,8 @@ class App:
     def _build_explorer(self, parent: tk.Frame, source: bool) -> None:
         """This PC's folders. As the destination (iPhone to PC) picking a folder sets Save in; as the source (PC to iPhone)
         double-clicking a folder lists its files in the middle, and double-clicking a file adds it."""
-        head = tk.Frame(parent, background=BG)
-        head.pack(fill="x", padx=8, pady=8)
-        tk.Label(head, text=T("Explorer") if source else T("Save in"), background=BG, foreground=TEXT, font=("Segoe UI", 10)).pack(side="left")
+        tk.Label(parent, text=T("Explorer") if source else T("Save in"), background=BG, foreground=MUTED,
+                 font=("Segoe UI", 9, "bold"), anchor="w", padx=14, pady=8).pack(fill="x")
         foot = ttk.Label(parent, style="Muted.TLabel", padding=(8, 6))
         foot.pack(side="bottom", fill="x")
         tree = ttk.Treeview(parent, show="tree", selectmode="browse")
@@ -1117,7 +1118,7 @@ class App:
         pick = ttk.Combobox(row, textvariable=self.send_to, values=list(self.send_names), state="readonly")
         pick.pack(fill="x", pady=(0, 8))
         pick.bind("<<ComboboxSelected>>", lambda _e: self._send_to_changed())
-        ttk.Label(row, text=T("folder")).pack(anchor="w")
+        ttk.Label(row, text=_cap(T("folder"))).pack(anchor="w")
         ttk.Entry(row, textvariable=self.remote).pack(fill="x", pady=(2, 8))
         ttk.Label(row, text="⚠ " + T("Won't show in Photos."), style="Muted.TLabel", foreground=RED).pack(anchor="w")
 
@@ -1321,6 +1322,10 @@ class App:
         if self.source:
             asyncio.run_coroutine_threadsafe(self.source.close(), self.loop).result(timeout=5)
         self.root.destroy()
+
+
+def _cap(text: str) -> str:
+    return text[:1].upper() + text[1:]
 
 
 def _apply_scale(scale: float) -> None:
