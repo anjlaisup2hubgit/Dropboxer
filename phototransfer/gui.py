@@ -28,7 +28,8 @@ SCROLL_UNIT = 40  # pixels per scroll unit
 WHEEL_UNITS = 3  # units per mouse wheel notch (about 120 px)
 TIP_DELAY_MS = 350
 PREVIEW = 900  # longest side of the picture opened by a double-click
-MIN_PREVIEW, MAX_PREVIEW_PX = 200, 3000  # limits of the typable preview size
+PREVIEW_SIZES = (400, 600, 900, 1200, 1600, 2000, 3000)  # choices in the preview size dropdown
+MIN_PREVIEW, MAX_PREVIEW_PX = 200, 3000
 TEXT_BYTES = 200 * 1024  # how much of a text file the preview reads
 ZIP_BYTES = 50 * 1024 * 1024  # biggest zip whose file list is read off the phone
 MAX_PREVIEW = 3000  # most files listed from one folder in PC to iPhone
@@ -72,11 +73,10 @@ MANUAL = [
     ("p", "Sent files go into the folder named on the iPhone, so they do not appear in the Photos app. Sending into /DCIM is refused because it can confuse Photos."),
     ("h", "Selecting"),
     ("p", "Click a picture to select it; click it again to unselect."),
-    ("p", "Shift-click selects everything between your last click and this one (if the last click unselected, the range unselects)."),
     ("p", "Click a day's heading to select all of that day; click it again to unselect the whole day."),
     ("p", "Hold the left button and drag a box to select every picture it touches. Drag a box over pictures that are already selected (or start it on one) to unselect them."),
     ("p", "Drag past the top or bottom of the list to scroll while boxing."),
-    ("p", "Double-click any file to preview it (pictures, videos, music, text, zip contents or its details). Type a number beside the language box to set the preview size."),
+    ("p", "Double-click any file to preview it (pictures, videos, music, text, zip contents or its details). The size dropdown beside the language box sets how big the preview is."),
     ("p", "Ctrl+A selects all shown files, Esc clears the selection. Deselect all (next to Send) clears it too."),
     ("p", "The Delete key removes the selected files: from the iPhone for good on the iPhone to PC tab, or to the Recycle Bin on the PC to iPhone tab. It always asks first."),
     ("h", "File types"),
@@ -297,16 +297,12 @@ class App:
         self.banner.pack(fill="x")
         self.banner.bind("<Configure>", lambda _e: self._zigzag())
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
-        # Packed first so it sits at the far right, beside the language box: type the longest side of the preview in pixels.
+        # Packed first so it sits at the far right, beside the language box: the longest side of the preview.
         if not hasattr(self, "preview_var"):
-            self.preview_var = tk.StringVar(value=str(_load_settings().get("preview", PREVIEW)))
-        size_box = ttk.Spinbox(head, from_=MIN_PREVIEW, to=MAX_PREVIEW_PX, increment=100, width=5, textvariable=self.preview_var)
-        size_box.pack(side="right", padx=(6, 0))
-        size_box.bind("<Return>", lambda _e: self._save_preview_size())
-        size_box.bind("<FocusOut>", lambda _e: self._save_preview_size())
-        size_box.bind("<<Increment>>", lambda _e: self.root.after_idle(self._save_preview_size))
-        size_box.bind("<<Decrement>>", lambda _e: self.root.after_idle(self._save_preview_size))
-        ttk.Label(head, text=T("Preview size"), style="Title.TLabel", font=("Segoe UI", 9)).pack(side="right", padx=(12, 0))
+            self.preview_var = tk.StringVar(value=f"{_load_settings().get('preview', PREVIEW)} px")
+        size_box = ttk.Combobox(head, values=[f"{n} px" for n in PREVIEW_SIZES], state="readonly", width=8, textvariable=self.preview_var)
+        size_box.pack(side="right", padx=(8, 0))
+        size_box.bind("<<ComboboxSelected>>", lambda _e: self._save_preview_size())
         lang = ttk.Combobox(head, values=list(LANGUAGES.values()), state="readonly", width=12)
         lang.set(LANGUAGES[language()])
         lang.pack(side="right")
@@ -743,12 +739,7 @@ class App:
             self.selected = self.selected - paths if paths <= self.selected else self.selected | paths
         else:
             f = h[5]
-            if e.state & 0x1 and self.last_clicked in self.shown:  # Shift: everything between the two clicks
-                i, j = sorted((self.shown.index(self.last_clicked), self.shown.index(f)))
-                span = {g.path for g in self.shown[i:j + 1]}  # the range follows the first click: it ticked, or unticked
-                self.selected = self.selected | span if self.last_clicked.path in self.selected else self.selected - span
-            else:
-                self.selected ^= {f.path}
+            self.selected ^= {f.path}
             self.last_clicked = f
         self._update_count()
         self._schedule_redraw()
@@ -785,13 +776,13 @@ class App:
     def _preview_px(self) -> int:
         """The longest side typed in the size box, kept between the limits."""
         try:
-            n = int(float(self.preview_var.get()))
-        except ValueError:
+            n = int(self.preview_var.get().split()[0])
+        except (ValueError, IndexError):
             n = PREVIEW
         return max(MIN_PREVIEW, min(MAX_PREVIEW_PX, n))
 
     def _save_preview_size(self) -> None:
-        self.preview_var.set(str(self._preview_px()))
+        self.preview_var.set(f"{self._preview_px()} px")
         _save_settings({**_load_settings(), "preview": self._preview_px()})
 
     async def _preview(self, f: RemoteFile, local: bool, win: tk.Toplevel, label: tk.Label, px: int) -> None:

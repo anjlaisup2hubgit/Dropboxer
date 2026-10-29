@@ -144,7 +144,8 @@ def _to_png(im, size: int, crop: bool) -> bytes:
     if crop:
         im = ImageOps.fit(im, (size, size))
     else:
-        im.thumbnail((size, size))
+        scale = size / max(im.size)  # fit the box, larger or smaller, so the preview size setting shows
+        im = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))))
     out = io.BytesIO()
     im.convert("RGB").save(out, "PNG")
     return out.getvalue()
