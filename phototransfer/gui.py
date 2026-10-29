@@ -75,7 +75,7 @@ MANUAL = [
     ("p", "Drag past the top or bottom of the list to scroll while boxing."),
     ("p", "Double-click a picture to open a larger preview; photos, videos and music play there."),
     ("p", "Ctrl+A selects all shown files, Esc clears the selection. Deselect all (next to Send) clears it too."),
-    ("p", "Delete (next to Deselect all) removes the selected files: from the iPhone for good on the iPhone to PC tab, or to the Recycle Bin on the PC to iPhone tab. It always asks first."),
+    ("p", "The Delete key removes the selected files: from the iPhone for good on the iPhone to PC tab, or to the Recycle Bin on the PC to iPhone tab. It always asks first."),
     ("h", "File types"),
     ("p", "Gallery shows photos and videos together; Music, Documents and Archives show those kinds; All shows everything."),
     ("h", "Icons on pictures"),
@@ -182,6 +182,7 @@ class App:
         self._mode_changed()  # PC to iPhone is the starting mode
         root.protocol("WM_DELETE_WINDOW", self._quit)
         root.bind("<Control-a>", lambda e: self._key(e, self.select_all))
+        root.bind("<Delete>", lambda e: self._key(e, self.delete_selected))
         root.bind("<Escape>", lambda e: self._key(e, self.clear_selection))
         root.after(POLL_MS, self._poll)
         self.scanning = self.auto = False  # auto: the running connect was started by the cable watcher, so it fails quietly
@@ -363,7 +364,6 @@ class App:
         self.select_all_cb = ttk.Checkbutton(top, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0), after=self.copy_btn)
         self.deselect_btn = ttk.Button(top, text=T("Deselect all"), style="Narrow.TButton", command=self.clear_selection)  # shown once something is picked
-        self.delete_btn = ttk.Button(top, text=T("Delete"), style="Danger.TButton", command=self.delete_selected)  # same
 
         mid = self.mid = ttk.Frame(body, padding=(16, 0, 0, 0))
         mid.pack(fill="both", expand=True)
@@ -861,10 +861,8 @@ class App:
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
         if sel:
             self.deselect_btn.pack(side="left", padx=(12, 0), after=self.select_all_cb)
-            self.delete_btn.pack(side="left", padx=(8, 0), after=self.deselect_btn)
         else:
             self.deselect_btn.pack_forget()
-            self.delete_btn.pack_forget()
         self.count.config(text=f"{T('{n} selected', n=len(sel))}  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
         self._update_albums()

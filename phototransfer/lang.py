@@ -55,7 +55,7 @@ VI = {
     "Move {n} files to the Recycle Bin?": "Chuyển {n} tệp vào Thùng rác?",
     "Deleting {n} files…": "Đang xóa {n} tệp…",
     "Deleted {n}, failed {failed}.": "Đã xóa {n}, lỗi {failed}.",
-    "Delete (next to Deselect all) removes the selected files: from the iPhone for good on the iPhone to PC tab, or to the Recycle Bin on the PC to iPhone tab. It always asks first.": "Nút Xóa (cạnh Bỏ chọn tất cả) xóa các tệp đã chọn: xóa hẳn khỏi iPhone ở thẻ iPhone → máy tính, hoặc chuyển vào Thùng rác ở thẻ Máy tính → iPhone. Luôn hỏi trước.",
+    "The Delete key removes the selected files: from the iPhone for good on the iPhone to PC tab, or to the Recycle Bin on the PC to iPhone tab. It always asks first.": "Phím Delete xóa các tệp đã chọn: xóa hẳn khỏi iPhone ở thẻ iPhone → máy tính, hoặc chuyển vào Thùng rác ở thẻ Máy tính → iPhone. Luôn hỏi trước.",
     "Wi-Fi": "Wi-Fi",
     "Clear dates": "Xóa ngày",
     "Change shared folder": "Đổi thư mục chia sẻ",
