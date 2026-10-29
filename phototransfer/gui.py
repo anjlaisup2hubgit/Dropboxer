@@ -16,6 +16,7 @@ from tkinter import filedialog, messagebox, ttk
 from .cli import DEFAULT_ROOT, DEFAULT_UPLOAD_ROOT, _human
 from .engine import copy_files, upload_files
 from .sources.base import RemoteFile, Source
+from .log import log, setup as setup_log
 from .lang import LANGUAGES, T, language, set_language
 from .thumbs import THUMB, ZIP_EXTS, audio_to_wav, is_audio, is_image, is_video, is_wav, load_thumb, local_thumb
 

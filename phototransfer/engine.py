@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
+from .log import log
 from .sources.base import RemoteFile, Source
 
 MANIFEST_NAME = ".phototransfer.json"
@@ -326,6 +327,7 @@ async def upload_files(
         except Cancelled:
             break
         except Exception as e:
+            log.info("upload %s failed: %r", rel, e)
             summary.failed.append((rel, f"{type(e).__name__}: {e}"))
             streak += 1
             if streak >= MAX_CONSECUTIVE_FAILURES:

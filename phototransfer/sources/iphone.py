@@ -4,6 +4,7 @@ from __future__ import annotations
 import posixpath
 from typing import AsyncIterator, Iterable
 
+from ..log import log
 from .base import RemoteFile, Source
 
 READ_CHUNK = 4 * 1024 * 1024  # AFC max read size
@@ -19,7 +20,15 @@ class IPhoneSource(Source):
         """The Documents folder of an app that allows file sharing (VLC, Documents, ...), over the same connection."""
         from pymobiledevice3.services.house_arrest import HouseArrestService
 
-        afc = await HouseArrestService.create(self._lockdown, bundle_id, documents_only=True)
+        try:
+            afc = await HouseArrestService.create(self._lockdown, bundle_id, documents_only=True)
+        except Exception as e:
+            log.exception("open_app %s failed: %r", bundle_id, e)
+            raise
+        try:
+            log.info("open_app %s ok; top level: %s", bundle_id, await afc.listdir("/"))
+        except Exception as e:
+            log.info("open_app %s ok; cannot list top level: %r", bundle_id, e)
         return IPhoneSource(self._lockdown, afc, owns_lockdown=False)
 
     @classmethod
@@ -81,10 +90,16 @@ class IPhoneSource(Source):
 
     async def write(self, path: str, chunks: Iterable[bytes]) -> None:
         part = path + ".part"
+        log.info("write %s", path)
         folder = posixpath.dirname(path)
-        if folder not in ("", "/") and not await self._afc.exists(folder):  # MAKE_DIR is refused on a folder that is already there
-            await self._afc.makedirs(folder)
-        handle = await self._afc.fopen(part, "w")
+        try:
+            if folder not in ("", "/") and not await self._afc.exists(folder):  # MAKE_DIR is refused on a folder that is already there
+                log.info("makedirs %s", folder)
+                await self._afc.makedirs(folder)
+            handle = await self._afc.fopen(part, "w")
+        except Exception as e:
+            log.exception("write %s: setup failed: %r (folder exists: %s)", path, e, await self._exists_quiet(folder))
+            raise
         try:
             for chunk in chunks:
                 await self._afc.fwrite(handle, chunk)
@@ -99,6 +114,12 @@ class IPhoneSource(Source):
         await self._afc.fclose(handle)
         await self._afc.rm_single(path, force=True)  # rename will not overwrite
         await self._afc.rename(part, path)
+
+    async def _exists_quiet(self, path: str):
+        try:
+            return await self._afc.exists(path or "/")
+        except Exception as e:
+            return f"unknown ({type(e).__name__})"
 
     async def remove(self, path: str) -> None:
         await self._afc.rm_single(path, force=True)
