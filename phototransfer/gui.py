@@ -6,6 +6,7 @@ import calendar
 import json
 import os
 import queue
+import shutil
 import threading
 import tkinter as tk
 from collections import defaultdict
@@ -102,6 +103,14 @@ PAPER = "#f8fafd"  # inputs, buttons and pop-ups: a touch lighter than the windo
 BG, HEAD, PANEL, SOFT, LINE = "#eef3f8", "#e1e9f2", PAPER, "#e3eaf2", "#c9d5e2"
 TEXT, MUTED, GREEN, GREEN_DARK, RED = "#1f2933", "#66727f", "#2b6cb0", "#1f5290", "#b5352b"  # GREEN is the blue accent (name is historical)
 TICK_BLUE = "#2b6cb0"
+LIGHT = dict(PAPER=PAPER, BG=BG, HEAD=HEAD, PANEL=PANEL, SOFT=SOFT, LINE=LINE, TEXT=TEXT, MUTED=MUTED, GREEN=GREEN,
+             GREEN_DARK=GREEN_DARK, RED=RED, TICK_BLUE=TICK_BLUE)
+DARK = dict(PAPER="#3b3b3b", BG="#303030", HEAD="#262626", PANEL="#3b3b3b", SOFT="#454545", LINE="#555555", TEXT="#e8e8e8",
+            MUTED="#a3a3a3", GREEN="#2f7fd3", GREEN_DARK="#7ab8f5", RED="#ff8a80", TICK_BLUE="#3d8fe0")  # the Wings look
+
+
+def _theme(dark: bool) -> None:
+    globals().update(DARK if dark else LIGHT)
 
 
 def _load_settings() -> dict:
@@ -257,7 +266,7 @@ class App:
         self.verb, self.nfiles, self.sizes = "Copying", 0, {}  # for the "3 of 80" progress text
         self.flights: dict[str, list] = {}  # progress path -> [from, to, bytes done, size] for the Wings window
         self.flight_ends = ("", "")  # where the current batch leaves from and arrives at
-        self.wings_win: tk.Toplevel | None = None
+        self.wings = False  # the dark four-pane layout: albums, files, routes, PC folders
         self.send_scanned = False  # the Pictures folder is previewed the first time PC to iPhone opens
 
         # One background thread owns the event loop (and so the device connection).
@@ -311,15 +320,15 @@ class App:
         # Outlined buttons with a thin line; the main action is solid green.
         s.configure("TButton", background=PAPER, foreground=TEXT, bordercolor=LINE, lightcolor=PAPER,
                     darkcolor=PAPER, borderwidth=1, padding=(14, 6), relief="solid")
-        s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#aab4bf"), ("active", GREEN_DARK)],
+        s.map("TButton", background=[("disabled", PAPER), ("active", SOFT)], foreground=[("disabled", "#777777" if self.wings else "#aab4bf"), ("active", GREEN_DARK)],
               bordercolor=[("disabled", LINE), ("active", GREEN)])
         s.configure("Narrow.TButton", padding=(6, 6))  # the date buttons and Clear dates
-        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#b5cde8", "white", True),
-                                                ("Danger", PAPER, "#fbeceb", PAPER, RED, False)):
+        for name, bg, hover, off, fg, fill in (("Primary", GREEN, GREEN_DARK, "#3a5573" if self.wings else "#b5cde8", "white", True),
+                                                ("Danger", PAPER, "#4a2f2d" if self.wings else "#fbeceb", PAPER, RED, False)):
             s.configure(f"{name}.TButton", background=bg, foreground=fg, font=("Segoe UI", 10, "bold"),
-                        bordercolor=bg if fill else "#e3c4c0", lightcolor=bg, darkcolor=bg)
+                        bordercolor=bg if fill else "#7a4a46" if self.wings else "#e3c4c0", lightcolor=bg, darkcolor=bg)
             s.map(f"{name}.TButton", background=[("disabled", off), ("active", hover)],
-                  foreground=[("disabled", "white" if fill else "#e3c3bf")],
+                  foreground=[("disabled", "white" if fill else "#7a4a46" if self.wings else "#e3c3bf")],
                   bordercolor=[("disabled", off if fill else LINE), ("active", hover if fill else RED)])
         s.configure("Seg.Toolbutton", background=PAPER, foreground=TEXT, bordercolor=LINE,
                     lightcolor=PAPER, darkcolor=PAPER, padding=(14, 6), borderwidth=1, relief="solid")
@@ -340,15 +349,22 @@ class App:
         s.map("TCheckbutton", background=[("active", BG)], indicatorbackground=[("selected", GREEN), ("!selected", PAPER)])
         s.configure("Horizontal.TProgressbar", troughcolor=SOFT, background=GREEN, bordercolor=LINE,
                     lightcolor=GREEN, darkcolor=GREEN, thickness=8)
-        s.configure("Vertical.TScrollbar", troughcolor=BG, background="#c9d5e2", bordercolor=BG, arrowcolor=BG,
-                    lightcolor="#c9d5e2", darkcolor="#c9d5e2")
-        s.map("Vertical.TScrollbar", background=[("active", "#b5c4d5")])
+        s.configure("Vertical.TScrollbar", troughcolor=BG, background=LINE, bordercolor=BG, arrowcolor=BG,
+                    lightcolor=LINE, darkcolor=LINE)
+        s.map("Vertical.TScrollbar", background=[("active", "#6a6a6a" if self.wings else "#b5c4d5")])
+        s.configure("Treeview", background=BG, fieldbackground=BG, foreground=TEXT, borderwidth=0, rowheight=24)
+        s.map("Treeview", background=[("selected", GREEN)], foreground=[("selected", "white")])
+        s.configure("Treeview.Heading", background=HEAD, foreground=TEXT, relief="flat", padding=4)
+        s.map("Treeview.Heading", background=[("active", SOFT)])
 
     def _zigzag(self) -> None:
         """The strip under the title; it doubles as the progress bar, filling left to right."""
         c, width = self.banner, self.banner.winfo_width()
         cut = width * self.progress / 100
         c.delete("all")
+        if self.wings:  # a thin line, like the reference
+            c.create_rectangle(0, 0, cut, 4, fill=GREEN, outline="")
+            return
         c.create_rectangle(0, 0, cut, 18, fill=GREEN_DARK, outline="")
         for x in range(0, width + 36, 36):
             tri = [(x, 0), (x + 36, 0), (x + 18, 18)]
@@ -373,7 +389,7 @@ class App:
         head.pack(fill="x")
         tk.Frame(self.root, height=1, background=LINE).pack(fill="x")  # thin line under the header
         self.progress = 0.0
-        self.banner = tk.Canvas(self.root, height=18, highlightthickness=0, background="#a9c3e0")  # zigzag strip, like the card banners
+        self.banner = tk.Canvas(self.root, height=4 if self.wings else 18, highlightthickness=0, background=LINE if self.wings else "#a9c3e0")  # zigzag strip, like the card banners
         self.banner.pack(fill="x")
         self.banner.bind("<Configure>", lambda _e: self._zigzag())
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
@@ -382,7 +398,8 @@ class App:
         lang.pack(side="right")
         lang.bind("<<ComboboxSelected>>", lambda _e: self._set_language(lang.current()))
         ttk.Button(head, text=T("How to use"), style="Narrow.TButton", width=BTN_W, command=self.show_manual).pack(side="right", padx=(0, 8))
-        ttk.Button(head, text=T("Wings"), style="Narrow.TButton", width=BTN_W, command=self.show_wings).pack(side="right", padx=(0, 8))
+        ttk.Button(head, text=T("Wings"), style="Primary.TButton" if self.wings else "Narrow.TButton", width=BTN_W,
+                   command=self.toggle_wings).pack(side="right", padx=(0, 8))
 
         self.top = top = ttk.Frame(self.root, padding=(16, 12, 16, 6))
         top.pack(fill="x")
@@ -399,8 +416,16 @@ class App:
         self.count = ttk.Label(top, text="", style="Muted.TLabel")
         self.count.pack(side="right")
 
+        body = self.root
+        if self.wings:  # albums | files | routes | PC folders
+            panes = tk.PanedWindow(self.root, orient="horizontal", sashwidth=5, background=LINE, borderwidth=0)
+            panes.pack(fill="both", expand=True)
+            side, body, routes, explorer = (tk.Frame(panes, background=BG) for _ in range(4))
+            for pane, w in ((side, 210), (body, 540), (routes, 400), (explorer, 280)):
+                panes.add(pane, width=w, minsize=150)
+
         # Where the files go.
-        self.rows = ttk.Frame(self.root, padding=(16, 0, 16, 8))
+        self.rows = ttk.Frame(body, padding=(16, 0, 16, 8))
         self.rows.pack(fill="x")
         self.dest_row = row = ttk.Frame(self.rows)
         ttk.Label(row, text=T("Save in")).pack(side="left")
@@ -422,10 +447,10 @@ class App:
         self.send_note.pack(side="left")
 
         # Filters and select-all sit in view, because they are used all the time.
-        bar = ttk.Frame(self.root, padding=(16, 0, 16, 8))
+        bar = ttk.Frame(body, padding=(16, 0, 16, 8))
         bar.pack(fill="x")
         self.kind = tk.StringVar(value="Gallery")
-        for name in KINDS:
+        for name in () if self.wings else KINDS:  # Wings has them in the left list
             ttk.Radiobutton(bar, text=T(name), value=name, variable=self.kind, style="Seg.Toolbutton",
                             command=self._fill).pack(side="left", padx=(0, 2))
         self.all_ticked = tk.BooleanVar(value=False)
@@ -439,7 +464,7 @@ class App:
             DateField(bar, var, hint, self._fill).pack(side="right", padx=(4, 0))
             ttk.Label(bar, text=text).pack(side="right", padx=(10, 0))
 
-        mid = ttk.Frame(self.root, padding=(16, 0))
+        mid = ttk.Frame(body, padding=(16, 0))
         mid.pack(fill="both", expand=True)
         self.canvas = tk.Canvas(mid, background=BG, highlightthickness=0, yscrollincrement=SCROLL_UNIT)
         sb = ttk.Scrollbar(mid, command=self.canvas.yview)
@@ -458,14 +483,30 @@ class App:
         for text, command in (("USB-C cable", self.connect), ("Wi-Fi share", self.wifi_share)):
             ttk.Button(self.empty, text=T(text), style="Primary.TButton", command=command, width=16).pack(side="left", padx=8, ipady=8)
 
-        self.status = ttk.Label(self.root, text="",
+        self.status = ttk.Label(body, text="",
                                 style="Muted.TLabel", padding=(16, 4, 16, 12))
         self.status.pack(side="bottom", fill="x", before=mid)  # a short window shrinks the grid, not the status
+        if self.wings:
+            self._build_albums(side)
+            self._build_routes(routes)
+            self._build_explorer(explorer)
 
     def _set_language(self, index: int) -> None:
         """Rebuild the window in the chosen language; the files, ticks, dates and folders stay as they are."""
         set_language(list(LANGUAGES)[index])
         _save_settings({**_load_settings(), "lang": language(), "dest": self.dest.get().strip()})
+        self._rebuild()
+
+    def toggle_wings(self) -> None:
+        """Wings: turn the window into the dark four-pane layout (and back): albums, files, routes, PC folders."""
+        self.wings = not self.wings
+        _theme(self.wings)
+        k = self.root.winfo_fpixels("1i") / 96
+        width = min(round((1560 if self.wings else 1100) * k), self.root.winfo_screenwidth() - 20)
+        self.root.geometry(f"{width}x{self.root.winfo_height()}+{max(0, (self.root.winfo_screenwidth() - width) // 2)}+{self.root.winfo_y()}")
+        self._rebuild()
+
+    def _rebuild(self) -> None:
         mode, kind = self.mode.get(), self.kind.get()
         dates = self.date_from.get(), self.date_to.get()
         for w in self.root.winfo_children():
@@ -823,6 +864,8 @@ class App:
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
         self.count.config(text=f"{T('{n} selected', n=len(sel))}  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
+        if self.wings:
+            self._update_albums()
 
     def _sync_buttons(self) -> None:
         n = len(self.selected_files())
@@ -1033,26 +1076,52 @@ class App:
         win.bind("<Escape>", lambda _e: win.destroy())
         win.focus_set()
 
-    def show_wings(self) -> None:
-        """Wings: a live map of where files leave from and arrive at, with every file's route listed."""
-        if self.wings_win and self.wings_win.winfo_exists():
-            self.wings_win.lift()
+    # ---- Wings panes --------------------------------------------------------------------------
+    def _build_albums(self, parent: tk.Frame) -> None:
+        """Left pane: the file types as a list with counts (the same filter as the buttons in the normal layout)."""
+        tk.Label(parent, text=T("iPhone") if self.mode.get() == "receive" else T("This PC"), background=BG, foreground=MUTED,
+                 font=("Segoe UI", 9, "bold"), anchor="w", padx=14, pady=8).pack(fill="x")
+        self.album_list = box = tk.Listbox(parent, background=BG, foreground=TEXT, selectbackground=GREEN, selectforeground="white",
+                                           highlightthickness=0, borderwidth=0, activestyle="none", exportselection=False,
+                                           font=("Segoe UI", 11))
+        box.pack(fill="both", expand=True)
+        box.bind("<<ListboxSelect>>", lambda _e: self._pick_album(box.curselection()))
+        self._update_albums()
+
+    def _update_albums(self) -> None:
+        box = getattr(self, "album_list", None)
+        if box is None or not box.winfo_exists():
             return
-        win = self.wings_win = tk.Toplevel(self.root)
-        win.title(f"{APP_NAME} - {T('Wings')}")
-        win.configure(background=BG)
-        win.geometry("860x520")
-        win.transient(self.root)
-        sky = tk.Canvas(win, height=130, background=BG, highlightthickness=0)
-        sky.pack(fill="x", padx=16, pady=(14, 6))
-        note = ttk.Label(win, style="Muted.TLabel", padding=(16, 6))
-        note.pack(side="bottom", fill="x")
-        tree = ttk.Treeview(win, columns=("name", "from", "to", "state"), show="headings", selectmode="browse")
-        for col, text, w in (("name", "File", 170), ("from", "From", 290), ("to", "To", 290), ("state", "Progress", 80)):
+        box.delete(0, "end")
+        for name, exts in KINDS.items():
+            n = sum(1 for f in self.all_files if exts is None or Path(f.path).suffix.lower() in exts)
+            box.insert("end", f"   {T(name)} ({n})")
+        box.selection_set(list(KINDS).index(self.kind.get()))
+
+    def _pick_album(self, picked) -> None:
+        if picked:
+            self.kind.set(list(KINDS)[picked[0]])
+            self._fill()
+
+    def _build_routes(self, parent: tk.Frame) -> None:
+        """Third pane: where every file of the current batch is leaving from and arriving at."""
+        tk.Label(parent, text=T("Routes"), background=GREEN, foreground="white", font=("Segoe UI", 9, "bold"), padx=8, pady=2).pack(anchor="w", padx=8, pady=8)
+        sky = tk.Canvas(parent, height=90, background=BG, highlightthickness=0)
+        sky.pack(fill="x", padx=8)
+        foot = tk.Frame(parent, background=BG)
+        foot.pack(side="bottom", fill="x", padx=8, pady=6)
+        note = ttk.Label(foot, style="Muted.TLabel")
+        note.pack(side="left")
+        detail = tk.Label(parent, background=BG, foreground=TEXT, justify="left", anchor="w", wraplength=360, padx=8, font=("Segoe UI", 9))
+        detail.pack(side="bottom", fill="x")
+        tree = ttk.Treeview(parent, columns=("name", "to", "state"), show="headings", selectmode="browse")
+        for col, text, w in (("name", "File", 120), ("to", "To", 170), ("state", "Progress", 60)):
             tree.heading(col, text=T(text))
-            tree.column(col, width=w, stretch=col in ("from", "to"))
+            tree.column(col, width=w, stretch=col != "state")
         tree.tag_configure("moving", foreground=GREEN_DARK)
         tree.tag_configure("done", foreground=MUTED)
+        tree.pack(fill="both", expand=True, padx=8, pady=(6, 0))
+        empty = tk.Label(tree, text=T("No items to display"), background=BG, foreground=TEXT, font=("Segoe UI", 15))
         shown: dict[str, tuple] = {}  # row id -> what it shows now, so only changed rows are touched
         tick = [0]
 
@@ -1078,51 +1147,51 @@ class App:
                 folder = folder.parent
             os.startfile(folder)  # type: ignore[attr-defined]
 
+        def show_detail(_e=None) -> None:
+            sel = tree.selection()
+            v = shown.get(sel[0]) if sel else None
+            detail.config(text=f"{T('From')}: {v[3]}\n{T('To')}: {v[1]}" if v else "")
+
         tree.bind("<Double-Button-1>", reveal)
-        bottom = ttk.Frame(win, padding=(16, 0, 16, 0))
-        bottom.pack(side="bottom", fill="x")
-        ttk.Button(bottom, text=T("Show on this PC"), style="Narrow.TButton", width=BTN_W, command=reveal).pack(side="right")
-        scroll = ttk.Scrollbar(win, command=tree.yview)
-        tree.configure(yscrollcommand=scroll.set)
-        scroll.pack(side="right", fill="y")
-        tree.pack(fill="both", expand=True, padx=(16, 0))
+        tree.bind("<<TreeviewSelect>>", show_detail)
+        ttk.Button(foot, text=T("Show on this PC"), style="Narrow.TButton", width=BTN_W, command=reveal).pack(side="right")
 
         def draw(moving: bool, left: str, right: str, wifi: bool) -> None:
             sky.delete("all")
-            w = max(sky.winfo_width(), 400)
-            ink = GREEN if moving else LINE
-            for x0, label in ((0, left or "—"), (w - 200, right or "—")):
-                sky.create_rectangle(x0 + 2, 14, x0 + 198, 116, fill=PAPER, outline=ink, width=2)
-                sky.create_text(x0 + 100, 65, text=label, width=170, fill=TEXT, font=("Segoe UI", 9, "bold"), justify="center")
-            y, a, b = 65, 214, w - 214
-            sky.create_line(a, y, b - 10, y, fill=ink, width=3)
-            sky.create_polygon(b, y, b - 16, y - 9, b - 16, y + 9, fill=ink, outline="")
+            w = max(sky.winfo_width(), 300)
+            bw, ink = max(90, int(w * 0.3)), GREEN if moving else LINE
+            for x0, label in ((0, left or "—"), (w - bw, right or "—")):
+                sky.create_rectangle(x0 + 2, 6, x0 + bw - 2, 84, fill=PAPER, outline=ink, width=2)
+                sky.create_text(x0 + bw / 2, 45, text=label, width=bw - 14, fill=TEXT, font=("Segoe UI", 8, "bold"), justify="center")
+            y, a, b = 45, bw + 10, w - bw - 10
+            sky.create_line(a, y, b - 8, y, fill=ink, width=3)
+            sky.create_polygon(b, y, b - 14, y - 8, b - 14, y + 8, fill=ink, outline="")
             if moving:  # dots slide along the line towards the arrival box
-                for k in range(8):
-                    x = a + (b - 16 - a) * ((tick[0] * 0.02 + k / 8) % 1)
-                    sky.create_oval(x - 5, y - 5, x + 5, y + 5, fill=GREEN_DARK, outline="")
+                for k in range(5):
+                    x = a + (b - 14 - a) * ((tick[0] * 0.02 + k / 5) % 1)
+                    sky.create_oval(x - 4, y - 4, x + 4, y + 4, fill=GREEN_DARK, outline="")
             elif wifi:
-                sky.create_text((a + b) / 2, y - 18, text=T("Wi-Fi share is open"), fill=MUTED)
+                sky.create_text((a + b) / 2, y - 16, text=T("Wi-Fi share is open"), fill=MUTED, font=("Segoe UI", 8))
 
         def refresh() -> None:
-            if not win.winfo_exists():
+            if not tree.winfo_exists():
                 return
             tick[0] += 1
             rows = dict(self.flights)
             server = getattr(self, "_wifi_server", None)
-            wifi_on = bool(server and self.wifi_win and self.wifi_win.winfo_exists())
+            wifi_on = bool(server and getattr(self, "wifi_win", None) and self.wifi_win.winfo_exists())
             for name in list(server.received) if wifi_on else []:
                 rows[f"wifi:{name}"] = [T("Phone (Wi-Fi)"), str(Path(self.dest.get().strip()) / name), 1, 1]
             for rid, (src, dst, done, size) in rows.items():
                 state = T("Waiting") if not done else T("Done") if done >= size else f"{100 * done // max(1, size)}%"
-                view = (PurePosixPath(dst.replace("\\", "/")).name, src, dst, state)
+                view = (PurePosixPath(dst.replace("\\", "/")).name, dst, state, src)
                 if shown.get(rid) == view:
                     continue
                 tags = ("done" if done and done >= size else "moving" if done else "",)
                 if rid in shown:
-                    tree.item(rid, values=view, tags=tags)
+                    tree.item(rid, values=view[:3], tags=tags)
                 else:
-                    tree.insert("", "end", iid=rid, values=view, tags=tags)
+                    tree.insert("", "end", iid=rid, values=view[:3], tags=tags)
                 shown[rid] = view
             for rid in [r for r in shown if r not in rows]:  # a new batch replaced the old one
                 tree.delete(rid)
@@ -1131,13 +1200,81 @@ class App:
             if wifi_on and not self.flights:
                 left, right = T("Phone (Wi-Fi)"), self.dest.get().strip()
             draw(self.busy and bool(self.flights), left, right, wifi_on)
+            show_detail()
+            if rows:
+                empty.place_forget()
+            else:
+                empty.place(relx=0.5, rely=0.4, anchor="center")
             arrived = sum(1 for r in rows.values() if r[2] >= r[3])
-            note.config(text=T("{done} of {n} arrived. Double-click a file to find it on this PC.", done=arrived, n=len(rows))
-                        if rows else T("Nothing has moved yet. Copy or send files and their route shows here."))
-            win.after(80 if self.busy else 400, refresh)
+            note.config(text=T("{done} of {n} arrived", done=arrived, n=len(rows)) if rows else "")
+            tree.after(80 if self.busy else 400, refresh)
 
-        win.bind("<Escape>", lambda _e: win.destroy())
         refresh()
+
+    def _build_explorer(self, parent: tk.Frame) -> None:
+        """Right pane: the folders of this PC. Picking one sets Save in; in PC to iPhone, double-click lists its files."""
+        head = tk.Frame(parent, background=BG)
+        head.pack(fill="x", padx=8, pady=8)
+        tk.Label(head, text=T("Explorer"), background=BG, foreground=TEXT, font=("Segoe UI", 10)).pack(side="left")
+        tk.Button(head, text="📁", background=BG, foreground=TEXT, relief="flat", borderwidth=0, activebackground=SOFT,
+                  command=self.browse).pack(side="right")
+        foot = ttk.Label(parent, style="Muted.TLabel", padding=(8, 6))
+        foot.pack(side="bottom", fill="x")
+        tree = ttk.Treeview(parent, show="tree", selectmode="browse")
+        sb = ttk.Scrollbar(parent, command=tree.yview)
+        tree.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        tree.pack(fill="both", expand=True)
+        paths: dict[str, Path] = {}
+
+        def add(parent_id: str, path: Path, label: str | None = None) -> str:
+            iid = tree.insert(parent_id, "end", text="  " + (label or path.name or str(path)), open=False)
+            paths[iid] = path
+            tree.insert(iid, "end", text="…")  # a placeholder so the arrow shows; replaced on first open
+            return iid
+
+        def opened(_e=None) -> None:
+            iid = tree.focus()
+            kids = tree.get_children(iid)
+            if iid not in paths or not (len(kids) == 1 and tree.item(kids[0], "text") == "…"):
+                return
+            tree.delete(kids[0])
+            try:
+                subs = sorted((d for d in paths[iid].iterdir() if d.is_dir()), key=lambda d: d.name.lower())
+            except OSError:
+                subs = []
+            for d in subs:
+                add(iid, d)
+
+        def picked(_e=None) -> None:
+            sel = tree.selection()
+            path = paths.get(sel[0]) if sel else None
+            if path is None:
+                return
+            if self.mode.get() == "receive":
+                self.dest.set(str(path))
+            try:
+                use = shutil.disk_usage(path)
+                foot.config(text=f"{T('Free')}: {_human(use.free)}  {T('Total')}: {_human(use.total)}")
+            except OSError:
+                foot.config(text=str(path))
+
+        def listing(_e=None) -> None:
+            sel = tree.selection()
+            if sel and sel[0] in paths and self.mode.get() == "send":
+                self._show_folder(paths[sel[0]])
+
+        pc = tree.insert("", "end", text="  " + T("This PC"), open=True)
+        home = Path.home()
+        for name in ("Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos"):
+            if (home / name).is_dir():
+                add(pc, home / name)
+        drives = [Path(f"{c}:/") for c in "CDEFGHIJKLMNOPQRSTUVWXYZ" if Path(f"{c}:/").exists()] if os.name == "nt" else [Path("/")]
+        for d in drives:
+            add(pc, d, str(d))
+        tree.bind("<<TreeviewOpen>>", opened)
+        tree.bind("<<TreeviewSelect>>", picked)
+        tree.bind("<Double-Button-1>", listing)
 
     def choose_files(self) -> None:
         names = filedialog.askopenfilenames(title=T("Choose files to send to the phone"), filetypes=[
