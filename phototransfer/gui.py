@@ -359,11 +359,12 @@ class App:
             ttk.Radiobutton(self.kind_seg, text=T(name), value=name, variable=self.kind, style="Seg.Toolbutton", takefocus=False,
                             command=self._fill).pack(side="left", padx=(0, 2))
         self.all_ticked = tk.BooleanVar(value=False)
-        self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
-        self.select_all_cb.pack(side="left", padx=(16, 0))
-        self.deselect_btn = ttk.Button(bar, text=T("Deselect all"), style="Narrow.TButton", command=self.clear_selection)  # shown once something is picked
+        self.kind_bar = bar
+        self.select_all_cb = ttk.Checkbutton(top, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
+        self.select_all_cb.pack(side="left", padx=(16, 0), after=self.copy_btn)
+        self.deselect_btn = ttk.Button(top, text=T("Deselect all"), style="Narrow.TButton", command=self.clear_selection)  # shown once something is picked
 
-        mid = ttk.Frame(body, padding=(16, 0, 0, 0))
+        mid = self.mid = ttk.Frame(body, padding=(16, 0, 0, 0))
         mid.pack(fill="both", expand=True)
         self.canvas = tk.Canvas(mid, background=BG, highlightthickness=0, yscrollincrement=SCROLL_UNIT)
         sb = ttk.Scrollbar(mid, command=self.canvas.yview)
@@ -460,9 +461,9 @@ class App:
         """The type buttons are redundant while the left wing has the Filter list."""
         hide = self.wings
         if hide:
-            self.kind_seg.pack_forget()
-        elif not self.kind_seg.winfo_ismapped():
-            self.kind_seg.pack(side="left", before=self.select_all_cb)
+            self.kind_bar.pack_forget()
+        elif not self.kind_bar.winfo_ismapped():
+            self.kind_bar.pack(fill="x", before=self.mid)
 
     def _wings_state(self) -> None:
         """The Wings button shows it is open, and the wings already hold Save in / Send to."""
