@@ -275,7 +275,7 @@ document.querySelector('.grid').addEventListener('click',e=>{{
   const a=e.target.closest('a');if(!sel||!a)return;e.preventDefault();
   const r=a.dataset.rel;if(chosen.has(r)){{chosen.delete(r);a.classList.remove('on');}}else{{chosen.add(r);a.classList.add('on');}}upd();}});
 async function del(){{const n=chosen.size;
-  if(!n||!confirm('Delete '+n+' file(s) from the PC? They go to the PC\'s Recycle Bin.'))return;
+  if(!n||!confirm('Delete '+n+' file(s) from the PC? They go to the Recycle Bin on the PC.'))return;
   const body=new URLSearchParams();chosen.forEach(r=>body.append('f',r));
   try{{const res=await fetch('/'+T+'/delete',{{method:'POST',body}});
     if(!res.ok)throw new Error(await res.text());location.reload();

@@ -542,3 +542,21 @@ def test_wifi_upload_saves_safely(tmp_path):
         assert put("x.jpg", b"1") == 200 and len(srv.received) == 6
     finally:
         srv.stop()
+
+
+def test_wifi_page_script_has_no_syntax_error(tmp_path):
+    """A stray quote in the page script (Python eats a backslash) kills every button on the phone."""
+    import re
+    import shutil
+    import subprocess
+
+    from phototransfer.wifi import PAGE
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    script = re.search(r"<script>(.*)</script>", PAGE.format(count=0, items="", token='"t"'), re.S)[1]
+    js = tmp_path / "page.js"
+    js.write_text(script, encoding="utf-8")
+    done = subprocess.run([node, "--check", str(js)], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
