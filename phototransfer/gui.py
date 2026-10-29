@@ -38,6 +38,7 @@ DOCS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf
         ".pages", ".numbers", ".key", ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr"}
 ARCHIVES = {".zip", ".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".lz4", ".tbz2", ".txz", ".cab", ".iso", ".dmg", ".exe", ".msi", ".apk", ".jar"}
 PHOTOS = {".heic", ".jpg", ".jpeg", ".png", ".dng", ".gif", ".tiff", ".webp"}
+TITLE_CHARS = 24  # a document tile shows at most this many characters of its title
 VIDEOS = {".mov", ".mp4", ".m4v"}
 KINDS = {
     "Gallery": PHOTOS | VIDEOS,
@@ -646,6 +647,11 @@ class App:
             img = self.thumb_by_path.get(f.path)
             if img:
                 c.create_image(x0 + THUMB // 2, y0 + THUMB // 2, image=img)
+            elif Path(f.path).suffix.lower() in DOCS:  # a document shows the start of its title, not a picture
+                stem = Path(f.path).stem
+                title = stem if len(stem) <= TITLE_CHARS else stem[:TITLE_CHARS - 1] + "…"
+                c.create_text(x0 + THUMB // 2, y0 + THUMB // 2, fill=TEXT, font=("Segoe UI", max(8, THUMB // 10)),
+                              width=THUMB - 12, justify="center", text=title)
             else:
                 c.create_text(x0 + THUMB // 2, y0 + THUMB // 2, fill=MUTED, font=("Segoe UI", 12, "bold"),
                               text=Path(f.path).suffix.lstrip(".").upper())
@@ -896,7 +902,7 @@ class App:
         if self.busy or not (local or self.source):
             return
         for f in self.visible:
-            if f.path not in self.thumb_asked and (is_image(f.path) or is_video(f.path) or is_doc(f.path, f.size) or (local and is_audio(f.path))):
+            if f.path not in self.thumb_asked and (is_image(f.path) or is_video(f.path) or (is_doc(f.path, f.size) and Path(f.path).suffix.lower() not in DOCS) or (local and is_audio(f.path))):
                 self.thumb_asked.add(f.path)
                 asyncio.run_coroutine_threadsafe(self._thumb(f, local), self.loop)
 
