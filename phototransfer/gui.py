@@ -75,6 +75,7 @@ MANUAL = [
     ("p", "Drag past the top or bottom of the list to scroll while boxing."),
     ("p", "Double-click a picture to open a larger preview; photos, videos and music play there."),
     ("p", "Ctrl+A selects all shown files, Esc clears the selection. Deselect all (next to Send) clears it too."),
+    ("p", "Delete (next to Deselect all) removes the selected files: from the iPhone for good on the iPhone to PC tab, or to the Recycle Bin on the PC to iPhone tab. It always asks first."),
     ("h", "File types"),
     ("p", "Gallery shows photos and videos together; Music, Documents and Archives show those kinds; All shows everything."),
     ("h", "Icons on pictures"),
@@ -362,6 +363,7 @@ class App:
         self.select_all_cb = ttk.Checkbutton(top, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0), after=self.copy_btn)
         self.deselect_btn = ttk.Button(top, text=T("Deselect all"), style="Narrow.TButton", command=self.clear_selection)  # shown once something is picked
+        self.delete_btn = ttk.Button(top, text=T("Delete"), style="Danger.TButton", command=self.delete_selected)  # same
 
         mid = self.mid = ttk.Frame(body, padding=(16, 0, 0, 0))
         mid.pack(fill="both", expand=True)
@@ -859,8 +861,10 @@ class App:
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
         if sel:
             self.deselect_btn.pack(side="left", padx=(12, 0), after=self.select_all_cb)
+            self.delete_btn.pack(side="left", padx=(8, 0), after=self.deselect_btn)
         else:
             self.deselect_btn.pack_forget()
+            self.delete_btn.pack_forget()
         self.count.config(text=f"{T('{n} selected', n=len(sel))}  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
         self._update_albums()
@@ -873,6 +877,38 @@ class App:
         else:
             self.copy_btn.config(text=T("Copy {n}", n=n) if n else T("Copy"), state="normal" if ready and n else "disabled")
         self.cancel_btn.pack(side="left", padx=(8, 0), after=self.copy_btn) if self.busy else self.cancel_btn.pack_forget()
+
+    def delete_selected(self) -> None:
+        """Delete the ticked files where they are listed: off the iPhone (for good) or off this PC (to the Recycle Bin)."""
+        files = self.selected_files()
+        if not files or self.busy:
+            return
+        on_phone = self.mode.get() == "receive"
+        if on_phone and not self.source:
+            return
+        n = len(files)
+        ask = T("Delete {n} files from your iPhone? This cannot be undone.", n=n) if on_phone             else T("Move {n} files to the Recycle Bin?", n=n)
+        if not messagebox.askyesno(T("Delete"), ask, icon="warning", default="no"):
+            return
+        self.status.config(text=T("Deleting {n} files…", n=n))
+        self._submit(self._delete(files, on_phone))
+
+    async def _delete(self, files, on_phone) -> None:
+        gone, failed = [], []
+        if on_phone:
+            for f in files:
+                try:
+                    await self.source.remove(f.path)
+                    gone.append(f.path)
+                except Exception as e:
+                    failed.append((f.path, str(e)))
+        else:
+            try:
+                _recycle([Path(f.path) for f in files])
+                gone = [f.path for f in files]
+            except Exception as e:
+                failed.append((files[0].path, str(e)))
+        self.events.put(("deleted", gone, failed))
 
     def browse(self) -> None:
         d = filedialog.askdirectory(initialdir=self.dest.get() if Path(self.dest.get()).exists() else None)
@@ -1349,6 +1385,17 @@ class App:
                 messagebox.showwarning(T("Some files failed"), "\n".join(f"{r}: {e}" for r, e in s.failed[:10]))
             self._sync_buttons()
             self.root.after_idle(self._load_visible)
+        elif kind == "deleted":
+            _, gone, failed = ev
+            self.busy = False
+            gone = set(gone)
+            self.all_files = [f for f in self.all_files if f.path not in gone]
+            self.selected -= gone
+            self._fill()
+            self.status.config(text=T("Deleted {n}, failed {failed}.", n=len(gone), failed=len(failed)))
+            if failed:
+                messagebox.showwarning(T("Some files failed"), "\n".join(f"{r}: {e}" for r, e in failed[:10]))
+            self._sync_buttons()
         elif kind == "error":
             e = ev[1]
             self.busy = False
@@ -1373,6 +1420,24 @@ class App:
         if self.source:
             asyncio.run_coroutine_threadsafe(self.source.close(), self.loop).result(timeout=5)
         self.root.destroy()
+
+
+def _recycle(paths: list[Path]) -> None:
+    """Move files to the Recycle Bin (so a mistake can be undone); other systems delete them outright."""
+    if os.name != "nt":
+        for p in paths:
+            p.unlink(missing_ok=True)
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    class FileOp(ctypes.Structure):
+        _fields_ = [("hwnd", wintypes.HWND), ("func", wintypes.UINT), ("src", wintypes.LPCWSTR), ("dst", wintypes.LPCWSTR),
+                    ("flags", ctypes.c_ushort), ("aborted", wintypes.BOOL), ("maps", ctypes.c_void_p), ("title", wintypes.LPCWSTR)]
+
+    op = FileOp(None, 3, "\0".join(str(p) for p in paths) + "\0\0", None, 0x40 | 0x10 | 0x4 | 0x400, False, None, None)  # delete; to bin, no asking, no progress window, no error box
+    if ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op)) or op.aborted:
+        raise OSError("Windows could not move the files to the Recycle Bin")
 
 
 def _cap(text: str) -> str:
