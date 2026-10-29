@@ -17,7 +17,7 @@ from .cli import DEFAULT_ROOT, DEFAULT_UPLOAD_ROOT, _human
 from .engine import copy_files, upload_files
 from .sources.base import RemoteFile, Source
 from .lang import LANGUAGES, T, language, set_language
-from .thumbs import THUMB, audio_to_wav, is_audio, is_image, is_video, is_wav, load_thumb, local_thumb
+from .thumbs import THUMB, audio_to_wav, is_audio, is_doc, is_image, is_video, is_wav, load_thumb, local_thumb
 
 SETTINGS_FILE = Path.home() / ".phototransfer" / "settings.json"
 POLL_MS = 100
@@ -896,7 +896,7 @@ class App:
         if self.busy or not (local or self.source):
             return
         for f in self.visible:
-            if f.path not in self.thumb_asked and (is_image(f.path) or is_video(f.path) or (local and is_audio(f.path))):
+            if f.path not in self.thumb_asked and (is_image(f.path) or is_video(f.path) or is_doc(f.path, f.size) or (local and is_audio(f.path))):
                 self.thumb_asked.add(f.path)
                 asyncio.run_coroutine_threadsafe(self._thumb(f, local), self.loop)
 

@@ -43,6 +43,73 @@ def is_wav(path: str) -> bool:
 def is_audio(path: str) -> bool:
     return PurePosixPath(path).suffix.lower() in AUDIO_EXTS
 
+ZIP_EXTS = {".zip", ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp", ".jar", ".apk"}
+DOC_HEAD = 64 * 1024  # bytes of a text file read to draw its tile
+ZIP_MAX_BYTES = 20 * 1024 * 1024
+
+
+def is_doc(path: str, size: int = 0) -> bool:
+    """A file whose tile can show its contents as text: a text file or a zip-like document (size 0 = unknown)."""
+    ext = PurePosixPath(path).suffix.lower()
+    return not (is_image(path) or is_video(path) or is_audio(path)) and (not ext or size <= ZIP_MAX_BYTES)
+
+
+def file_text(data: bytes, ext: str) -> str | None:
+    """The readable text of a file's bytes: plain text, the words of a docx/xlsx/pptx/odt, or the names inside a zip."""
+    import re
+    import zipfile
+
+    if ext in ZIP_EXTS:
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                names = z.namelist()
+                parts = [n for n in ("word/document.xml", "xl/sharedStrings.xml", "content.xml") if n in names]
+                parts += sorted(n for n in names if re.fullmatch(r"ppt/slides/slide\d+\.xml", n))[:3]
+                if parts:
+                    xml = " ".join(z.read(n)[:200_000].decode("utf-8", "ignore") for n in parts[:4])
+                    text = re.sub(r"</(w:p|a:p|text:p|si)>", "\n", xml)
+                    text = "\n".join(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", ln)).strip() for ln in text.split("\n"))
+                    if text.strip():
+                        return text
+                return "\n".join(names[:60])
+        except Exception:
+            return None
+    if not data or 0 in data[:4096]:
+        return None
+    for enc in ("utf-16",) if data[:2] in (bytes([255, 254]), bytes([254, 255])) else ("utf-8", "cp1252"):
+        try:
+            return data.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return None
+
+
+def make_text_thumb(text: str, size: int = THUMB, crop: bool = True) -> bytes | None:
+    """PNG of a white page with the first lines of `text` on it, small like a real page seen from afar."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        w_px, h_px = (size, size) if crop else (size, round(size * 1.3))
+        im = Image.new("RGB", (w_px, h_px), "white")
+        d = ImageDraw.Draw(im)
+        px = max(6, size // 13)
+        try:
+            font = ImageFont.truetype("consola.ttf", px)
+        except OSError:
+            font = ImageFont.load_default()
+        pad, y = max(3, size // 24), max(3, size // 24)
+        cols = max(4, int((w_px - 2 * pad) / (px * 0.55)))
+        for line in text.expandtabs(2).splitlines():
+            if y + px > h_px - pad:
+                break
+            if line.strip():
+                d.text((pad, y), line.rstrip()[:cols], fill="#2d3748", font=font)
+            y += round(px * 1.25)
+        im.save(out := io.BytesIO(), "PNG")
+        return out.getvalue()
+    except Exception:
+        return None
+
 
 def _decode_pcm(path: str | Path, rate: int, layout: str):
     """Yield raw 16-bit PCM byte blocks of any audio file (mp3, m4a, webm, ...), resampled to `rate`."""
@@ -191,6 +258,11 @@ def local_thumb(path: str | Path, size: int = THUMB, crop: bool = False) -> byte
             return make_video_thumb(p, size, crop) or make_wave_thumb(p, size, crop) or make_audio_thumb(p, size, crop)
         if is_image(p.name) and p.stat().st_size <= MAX_BYTES:
             return make_thumb(p.read_bytes(), size, crop)
+        if is_doc(p.name, p.stat().st_size):
+            ext = p.suffix.lower()
+            with open(p, "rb") as fh:
+                text = file_text(fh.read(ZIP_MAX_BYTES if ext in ZIP_EXTS else DOC_HEAD), ext)
+            return make_text_thumb(text, size, crop) if text and text.strip() else None
     except OSError:
         pass
     return None
@@ -205,7 +277,8 @@ async def load_thumb(source: Source, f: RemoteFile, cache_dir: Path = CACHE_DIR,
                      crop: bool = False) -> bytes | None:
     """PNG thumbnail for f, from the cache if we have one, else read from the source. None if not possible."""
     video = is_video(f.path)
-    if not (is_image(f.path) and f.size <= MAX_BYTES) and not (video and f.size <= VIDEO_MAX_BYTES):
+    doc = is_doc(f.path, f.size)
+    if not (is_image(f.path) and f.size <= MAX_BYTES) and not (video and f.size <= VIDEO_MAX_BYTES) and not doc:
         return None
     cached = _cache_file(f, cache_dir, size, crop)
     try:
@@ -213,7 +286,17 @@ async def load_thumb(source: Source, f: RemoteFile, cache_dir: Path = CACHE_DIR,
     except OSError:
         pass
     loop = asyncio.get_running_loop()
-    if video:  # decoders need a seekable file (the index of an iPhone video is at its end), so stage it on disk
+    if doc:
+        ext = PurePosixPath(f.path).suffix.lower()
+        limit = ZIP_MAX_BYTES if ext in ZIP_EXTS else DOC_HEAD
+        buf = bytearray()
+        async for chunk in source.read(f.path):
+            buf += chunk
+            if len(buf) >= limit:
+                break
+        text = file_text(bytes(buf[:limit]), ext)
+        png = make_text_thumb(text, size, crop) if text and text.strip() else None
+    elif video:  # decoders need a seekable file (the index of an iPhone video is at its end), so stage it on disk
         fd, tmp = tempfile.mkstemp(suffix=Path(f.path).suffix)
         try:
             with os.fdopen(fd, "wb") as out:
