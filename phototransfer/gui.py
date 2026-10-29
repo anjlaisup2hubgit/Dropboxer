@@ -14,7 +14,7 @@ from pathlib import Path, PurePosixPath
 from tkinter import filedialog, messagebox, ttk
 
 from .cli import DEFAULT_ROOT, DEFAULT_UPLOAD_ROOT, _human
-from .engine import copy_files, upload_files
+from .engine import copy_files, plan_paths, upload_files
 from .sources.base import RemoteFile, Source
 from .lang import LANGUAGES, T, language, set_language
 from .thumbs import THUMB, audio_to_wav, is_audio, is_image, is_video, is_wav, load_thumb, local_thumb
@@ -255,6 +255,9 @@ class App:
         self.thumb_sem: asyncio.Semaphore | None = None  # created on the loop thread
         self.failed = False  # the last connection or transfer broke: the button offers Reconnect
         self.verb, self.nfiles, self.sizes = "Copying", 0, {}  # for the "3 of 80" progress text
+        self.flights: dict[str, list] = {}  # progress path -> [from, to, bytes done, size] for the Wings window
+        self.flight_ends = ("", "")  # where the current batch leaves from and arrives at
+        self.wings_win: tk.Toplevel | None = None
         self.send_scanned = False  # the Pictures folder is previewed the first time PC to iPhone opens
 
         # One background thread owns the event loop (and so the device connection).
@@ -379,6 +382,7 @@ class App:
         lang.pack(side="right")
         lang.bind("<<ComboboxSelected>>", lambda _e: self._set_language(lang.current()))
         ttk.Button(head, text=T("How to use"), style="Narrow.TButton", width=BTN_W, command=self.show_manual).pack(side="right", padx=(0, 8))
+        ttk.Button(head, text=T("Wings"), style="Narrow.TButton", width=BTN_W, command=self.show_wings).pack(side="right", padx=(0, 8))
 
         self.top = top = ttk.Frame(self.root, padding=(16, 12, 16, 6))
         top.pack(fill="x")
@@ -877,6 +881,9 @@ class App:
         self.total = sum(f.size for f in files)
         self.done: dict[str, int] = {}
         self.verb, self.nfiles, self.sizes = "Copying", len(files), {}
+        plan = plan_paths(files, DEFAULT_ROOT, True)
+        self.flight_ends = ("iPhone", dest)
+        self.flights = {f.path: [f.path, str(Path(dest) / plan[f.path]), 0, f.size] for f in files}
         self.status.config(text=T("Copying {n} files…", n=len(files)))
         self._submit(self._copy(files, Path(dest)))
 
@@ -1026,6 +1033,112 @@ class App:
         win.bind("<Escape>", lambda _e: win.destroy())
         win.focus_set()
 
+    def show_wings(self) -> None:
+        """Wings: a live map of where files leave from and arrive at, with every file's route listed."""
+        if self.wings_win and self.wings_win.winfo_exists():
+            self.wings_win.lift()
+            return
+        win = self.wings_win = tk.Toplevel(self.root)
+        win.title(f"{APP_NAME} - {T('Wings')}")
+        win.configure(background=BG)
+        win.geometry("860x520")
+        win.transient(self.root)
+        sky = tk.Canvas(win, height=130, background=BG, highlightthickness=0)
+        sky.pack(fill="x", padx=16, pady=(14, 6))
+        note = ttk.Label(win, style="Muted.TLabel", padding=(16, 6))
+        note.pack(side="bottom", fill="x")
+        tree = ttk.Treeview(win, columns=("name", "from", "to", "state"), show="headings", selectmode="browse")
+        for col, text, w in (("name", "File", 170), ("from", "From", 290), ("to", "To", 290), ("state", "Progress", 80)):
+            tree.heading(col, text=T(text))
+            tree.column(col, width=w, stretch=col in ("from", "to"))
+        tree.tag_configure("moving", foreground=GREEN_DARK)
+        tree.tag_configure("done", foreground=MUTED)
+        shown: dict[str, tuple] = {}  # row id -> what it shows now, so only changed rows are touched
+        tick = [0]
+
+        def local_of(row: str) -> Path | None:
+            """The copy on this PC that a row stands for: the saved file when receiving, the source when sending."""
+            if row.startswith("wifi:"):
+                return Path(self.dest.get().strip()) / row[5:]
+            f = self.flights.get(row)
+            return Path(f[1] if self.flight_ends[0] == "iPhone" else f[0]) if f else None
+
+        def reveal(_e=None) -> None:
+            sel = tree.selection()
+            target = local_of(sel[0]) if sel else None
+            if target is None or os.name != "nt":
+                return
+            if target.exists():
+                import subprocess
+
+                subprocess.Popen(["explorer", "/select,", str(target)])
+                return
+            folder = target.parent
+            while not folder.exists() and folder != folder.parent:
+                folder = folder.parent
+            os.startfile(folder)  # type: ignore[attr-defined]
+
+        tree.bind("<Double-Button-1>", reveal)
+        bottom = ttk.Frame(win, padding=(16, 0, 16, 0))
+        bottom.pack(side="bottom", fill="x")
+        ttk.Button(bottom, text=T("Show on this PC"), style="Narrow.TButton", width=BTN_W, command=reveal).pack(side="right")
+        scroll = ttk.Scrollbar(win, command=tree.yview)
+        tree.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        tree.pack(fill="both", expand=True, padx=(16, 0))
+
+        def draw(moving: bool, left: str, right: str, wifi: bool) -> None:
+            sky.delete("all")
+            w = max(sky.winfo_width(), 400)
+            ink = GREEN if moving else LINE
+            for x0, label in ((0, left or "—"), (w - 200, right or "—")):
+                sky.create_rectangle(x0 + 2, 14, x0 + 198, 116, fill=PAPER, outline=ink, width=2)
+                sky.create_text(x0 + 100, 65, text=label, width=170, fill=TEXT, font=("Segoe UI", 9, "bold"), justify="center")
+            y, a, b = 65, 214, w - 214
+            sky.create_line(a, y, b - 10, y, fill=ink, width=3)
+            sky.create_polygon(b, y, b - 16, y - 9, b - 16, y + 9, fill=ink, outline="")
+            if moving:  # dots slide along the line towards the arrival box
+                for k in range(8):
+                    x = a + (b - 16 - a) * ((tick[0] * 0.02 + k / 8) % 1)
+                    sky.create_oval(x - 5, y - 5, x + 5, y + 5, fill=GREEN_DARK, outline="")
+            elif wifi:
+                sky.create_text((a + b) / 2, y - 18, text=T("Wi-Fi share is open"), fill=MUTED)
+
+        def refresh() -> None:
+            if not win.winfo_exists():
+                return
+            tick[0] += 1
+            rows = dict(self.flights)
+            server = getattr(self, "_wifi_server", None)
+            wifi_on = bool(server and self.wifi_win and self.wifi_win.winfo_exists())
+            for name in list(server.received) if wifi_on else []:
+                rows[f"wifi:{name}"] = [T("Phone (Wi-Fi)"), str(Path(self.dest.get().strip()) / name), 1, 1]
+            for rid, (src, dst, done, size) in rows.items():
+                state = T("Waiting") if not done else T("Done") if done >= size else f"{100 * done // max(1, size)}%"
+                view = (PurePosixPath(dst.replace("\\", "/")).name, src, dst, state)
+                if shown.get(rid) == view:
+                    continue
+                tags = ("done" if done and done >= size else "moving" if done else "",)
+                if rid in shown:
+                    tree.item(rid, values=view, tags=tags)
+                else:
+                    tree.insert("", "end", iid=rid, values=view, tags=tags)
+                shown[rid] = view
+            for rid in [r for r in shown if r not in rows]:  # a new batch replaced the old one
+                tree.delete(rid)
+                del shown[rid]
+            left, right = self.flight_ends
+            if wifi_on and not self.flights:
+                left, right = T("Phone (Wi-Fi)"), self.dest.get().strip()
+            draw(self.busy and bool(self.flights), left, right, wifi_on)
+            arrived = sum(1 for r in rows.values() if r[2] >= r[3])
+            note.config(text=T("{done} of {n} arrived. Double-click a file to find it on this PC.", done=arrived, n=len(rows))
+                        if rows else T("Nothing has moved yet. Copy or send files and their route shows here."))
+            win.after(80 if self.busy else 400, refresh)
+
+        win.bind("<Escape>", lambda _e: win.destroy())
+        refresh()
+
     def choose_files(self) -> None:
         names = filedialog.askopenfilenames(title=T("Choose files to send to the phone"), filetypes=[
             (T("All files"), "*.*"), (T("Music"), " ".join(f"*{e}" for e in sorted(AUDIO))),
@@ -1101,6 +1214,14 @@ class App:
         self.total = sum(p.stat().st_size for p in paths)
         self.done = {}
         self.verb, self.nfiles, self.sizes = "Sending", len(paths), {}
+        app = SEND_TO[self.send_names[self.send_to.get()]]
+        base = "" if remote == "/" and app else remote
+        where = self.send_to.get().split(" (")[0] if app else "iPhone"
+        self.flight_ends = (T("This PC"), f"{where}: {remote}")
+        self.flights = {}
+        for p in paths:
+            target = f"{base.rstrip('/')}/{p.relative_to(root).as_posix()}"
+            self.flights[target] = [str(p), f"{where}: {target}", 0, p.stat().st_size]
         self.status.config(text=T("Sending {n} files to {remote}…", n=len(paths), remote=remote))
         self._submit(self._send(paths, root, remote))
 
@@ -1173,6 +1294,8 @@ class App:
         elif kind == "progress":
             _, path, done, total = ev
             self.done[path] = done  # bytes done per file; the bar sums them
+            if path in self.flights:
+                self.flights[path][2:] = [done, total]
             self.sizes[path] = total
             pct = 100 * sum(self.done.values()) / max(1, self.total)
             self._set_progress(pct)
