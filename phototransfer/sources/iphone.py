@@ -81,7 +81,9 @@ class IPhoneSource(Source):
 
     async def write(self, path: str, chunks: Iterable[bytes]) -> None:
         part = path + ".part"
-        await self._afc.makedirs(posixpath.dirname(path))
+        folder = posixpath.dirname(path)
+        if folder not in ("", "/") and not await self._afc.exists(folder):  # MAKE_DIR is refused on a folder that is already there
+            await self._afc.makedirs(folder)
         handle = await self._afc.fopen(part, "w")
         try:
             for chunk in chunks:
