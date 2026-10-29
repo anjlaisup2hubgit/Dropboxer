@@ -51,7 +51,7 @@ MANUAL = [
     ("p", "Hold the left button and drag a box to select every picture it touches. Drag a box over pictures that are already selected (or start it on one) to unselect them."),
     ("p", "Drag past the top or bottom of the list to scroll while boxing."),
     ("p", "Double-click a picture to open a larger preview; photos, videos and music play there."),
-    ("p", "Ctrl+A selects all shown files, Esc clears the selection. Untick Select all above the list to clear it too."),
+    ("p", "Ctrl+A selects all shown files, Esc clears the selection. Deselect all (next to Select all) clears it too."),
     ("h", "File types"),
     ("p", "Gallery shows photos and videos together; Music, Documents and Archives show those kinds; All shows everything."),
     ("h", "Icons on pictures"),
@@ -361,6 +361,7 @@ class App:
         self.all_ticked = tk.BooleanVar(value=False)
         self.select_all_cb = ttk.Checkbutton(bar, text=T("Select all"), variable=self.all_ticked, command=self._toggle_all)
         self.select_all_cb.pack(side="left", padx=(16, 0))
+        self.deselect_btn = ttk.Button(bar, text=T("Deselect all"), style="Narrow.TButton", command=self.clear_selection)  # shown once something is picked
 
         mid = ttk.Frame(body, padding=(16, 0, 0, 0))
         mid.pack(fill="both", expand=True)
@@ -841,6 +842,10 @@ class App:
     def _update_count(self) -> None:
         sel = self.selected_files()
         self.all_ticked.set(bool(self.shown) and len(sel) == len(self.shown))
+        if sel:
+            self.deselect_btn.pack(side="left", padx=(12, 0), after=self.select_all_cb)
+        else:
+            self.deselect_btn.pack_forget()
         self.count.config(text=f"{T('{n} selected', n=len(sel))}  ·  {_human(sum(f.size for f in sel))}" if sel else "")
         self._sync_buttons()
         self._update_albums()
