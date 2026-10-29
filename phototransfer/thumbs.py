@@ -84,6 +84,23 @@ def file_text(data: bytes, ext: str) -> str | None:
     return None
 
 
+def make_pdf_thumb(data: bytes, size: int = THUMB, crop: bool = True) -> bytes | None:
+    """PNG of a PDF's first page (the top square of it when crop), or None if it cannot be drawn."""
+    try:
+        import pypdfium2 as pdfium
+        from PIL import ImageOps
+
+        page = pdfium.PdfDocument(data)[0]
+        im = page.render(scale=size / max(page.get_size())).to_pil()
+        if crop:
+            im = ImageOps.fit(im, (size, size), centering=(0.5, 0.0))
+        out = io.BytesIO()
+        im.convert("RGB").save(out, "PNG")
+        return out.getvalue()
+    except Exception:
+        return None
+
+
 def make_text_thumb(text: str, size: int = THUMB, crop: bool = True) -> bytes | None:
     """PNG of a white page with the first lines of `text` on it, small like a real page seen from afar."""
     try:
@@ -261,7 +278,10 @@ def local_thumb(path: str | Path, size: int = THUMB, crop: bool = False) -> byte
         if is_doc(p.name, p.stat().st_size):
             ext = p.suffix.lower()
             with open(p, "rb") as fh:
-                text = file_text(fh.read(ZIP_MAX_BYTES if ext in ZIP_EXTS else DOC_HEAD), ext)
+                data = fh.read(ZIP_MAX_BYTES if ext in ZIP_EXTS | {".pdf"} else DOC_HEAD)
+            if ext == ".pdf":
+                return make_pdf_thumb(data, size, crop)
+            text = file_text(data, ext)
             return make_text_thumb(text, size, crop) if text and text.strip() else None
     except OSError:
         pass
@@ -288,14 +308,17 @@ async def load_thumb(source: Source, f: RemoteFile, cache_dir: Path = CACHE_DIR,
     loop = asyncio.get_running_loop()
     if doc:
         ext = PurePosixPath(f.path).suffix.lower()
-        limit = ZIP_MAX_BYTES if ext in ZIP_EXTS else DOC_HEAD
+        limit = ZIP_MAX_BYTES if ext in ZIP_EXTS | {".pdf"} else DOC_HEAD
         buf = bytearray()
         async for chunk in source.read(f.path):
             buf += chunk
             if len(buf) >= limit:
                 break
-        text = file_text(bytes(buf[:limit]), ext)
-        png = make_text_thumb(text, size, crop) if text and text.strip() else None
+        if ext == ".pdf":
+            png = await loop.run_in_executor(None, make_pdf_thumb, bytes(buf), size, crop)
+        else:
+            text = file_text(bytes(buf[:limit]), ext)
+            png = make_text_thumb(text, size, crop) if text and text.strip() else None
     elif video:  # decoders need a seekable file (the index of an iPhone video is at its end), so stage it on disk
         fd, tmp = tempfile.mkstemp(suffix=Path(f.path).suffix)
         try:
