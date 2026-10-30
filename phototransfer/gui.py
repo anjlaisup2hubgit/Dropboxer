@@ -61,6 +61,9 @@ MANUAL = [
     ("p", "1. Put the card in a card reader, or plug in the camera in file-transfer mode (or an Android phone in File transfer mode, if Windows gives it a drive letter)."),
     ("p", "2. Its photos and videos (the DCIM folder) appear in the list by themselves, as for an iPhone."),
     ("p", "3. Select files and click Copy. The card is only read: nothing is written to it or deleted from it. An iPhone plugged in at the same time is used first."),
+    ("p", "Cards and Android phones are also searched in Pictures, Movies, PRIVATE (Sony and AVCHD clips), WhatsApp and Telegram, not only DCIM. The line under the list says how many files came from those other folders."),
+    ("s", "iPhone photos missing or only a few?"),
+    ("p", "If the iPhone uses iCloud Photos with Optimize iPhone Storage, older originals are only in iCloud and cannot be copied over USB. Dropboxer warns you once when it sees signs of this. On the iPhone open Settings > Photos, turn on Download and Keep Originals, wait until it finishes, then connect again."),
     ("s", "With Wi-Fi (no cable):"),
     ("p", "1. Put the phone and the PC on the same Wi-Fi."),
     ("p", "2. With no cable plugged in, the middle of the window shows a QR code and a Wi-Fi link."),
@@ -95,6 +98,13 @@ MANUAL = [
     ("i", "archive", "Archive or installer (ZIP, RAR, EXE…)."),
     ("h", "Accepted file types"),
     ("p", "Anything else (for example .bin or .dll) is not accepted by the Wi-Fi page. Installers are only stored, never run. Kindle and other e-book formats need a reader app on the phone."),
+]
+NEWS_VERSION = 2
+NEWS = [
+    ("Finds more than DCIM", "Memory cards and Android phones are now also searched in Pictures, Movies, PRIVATE (Sony and AVCHD clips), WhatsApp and Telegram. The status line says how many files came from other folders."),
+    ("iCloud Photos warning", "If an iPhone keeps photos in iCloud, older originals cannot be copied over USB. Dropboxer now tells you once, and how to fix it: Settings > Photos > Download and Keep Originals."),
+    ("Android phones", "Plug in the phone, unlock it and choose File transfer. Dropboxer checks there is room in the temp folder before copying each file. Not yet tried on many phones: please report problems."),
+    ("If Windows blocks the app", "PhoneTransfer.exe is not code-signed. If Windows says it protected your PC, click More info, then Run anyway."),
 ]
 # PC to iPhone destinations. The Music app cannot be filled over USB, so music goes into the Documents
 # folder of a player that allows file sharing; the first choice is a plain folder (what photos use).
@@ -200,6 +210,8 @@ class App:
         self.scanning = self.auto = False  # auto: the running connect was started by the cable watcher, so it fails quietly
         root.after(500, self._watch)
         root.after(300, self._share_start)
+        if _load_settings().get("news_seen", 0) < NEWS_VERSION:
+            root.after(1200, self.show_news)
 
     # ---- layout -------------------------------------------------------------------------------
     def _style(self) -> None:
@@ -317,6 +329,9 @@ class App:
         lang.pack(side="right")
         lang.bind("<<ComboboxSelected>>", lambda _e: self._set_language(lang.current()))
         ttk.Button(head, text=T("How to use"), style="Narrow.TButton", width=BTN_W, command=self.show_manual).pack(side="right", padx=(0, 8))
+        self.news_btn = ttk.Button(head, style="Narrow.TButton", width=BTN_W, command=self.show_news)
+        self.news_btn.pack(side="right", padx=(0, 8))
+        self._news_label()
         self.wings_btn = ttk.Button(head, text=T("Wings"), width=BTN_W, command=self.toggle_wings)
         self.wings_btn.pack(side="right", padx=(0, 8))
 
@@ -1191,6 +1206,36 @@ class App:
             wing.config(text=self.remote_label.cget("text"))
             self.wing_note.config(text=self.send_note.cget("text"), foreground=str(self.send_note.cget("foreground")))
 
+    def _news_label(self) -> None:
+        unseen = _load_settings().get("news_seen", 0) < NEWS_VERSION
+        self.news_btn.config(text=("● " if unseen else "") + T("What's new"))
+
+    def show_news(self) -> None:
+        """A short list of what changed, with buttons to the manual; remembered as read so the dot goes away."""
+        _save_settings({**_load_settings(), "news_seen": NEWS_VERSION})
+        self._news_label()
+        win = tk.Toplevel(self.root)
+        win.title(T("What's new"))
+        win.configure(background=BG)
+        w, h = 620, 560
+        sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+        w, h = min(w, sw - 80), min(h, sh - 120)
+        win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 20}")
+        win.transient(self.root)
+        tk.Label(win, text=T("What's new"), background=BG, foreground=GREEN_DARK, font=("Segoe UI", 16, "bold"), anchor="w", padx=24, pady=16).pack(fill="x")
+        for title, body in NEWS:
+            card = tk.Frame(win, background=PAPER, highlightthickness=1, highlightbackground=LINE)
+            card.pack(fill="x", padx=24, pady=(0, 10))
+            tk.Label(card, text=T(title), background=PAPER, foreground=TEXT, font=("Segoe UI", 12, "bold"), anchor="w", padx=14, pady=(8)).pack(fill="x")
+            tk.Label(card, text=T(body), background=PAPER, foreground=MUTED, font=("Segoe UI", 11), anchor="w", justify="left",
+                     wraplength=w - 100, padx=14).pack(fill="x", pady=(0, 10))
+        row = tk.Frame(win, background=BG)
+        row.pack(side="bottom", fill="x", padx=24, pady=16)
+        ttk.Button(row, text=T("Got it"), width=BTN_W, command=win.destroy).pack(side="right")
+        ttk.Button(row, text=T("How to use"), width=BTN_W, command=lambda: (win.destroy(), self.show_manual())).pack(side="right", padx=(0, 8))
+        win.bind("<Escape>", lambda _e: win.destroy())
+        win.focus_set()
+
     def show_manual(self) -> None:
         """The instruction manual: the things the window does not make obvious, and what files are accepted."""
         win = tk.Toplevel(self.root)
@@ -1482,9 +1527,12 @@ class App:
             if ev[1]:
                 lo, hi = (datetime.fromtimestamp(t(f.mtime for f in ev[1])).strftime("%Y-%m-%d") for t in (min, max))
                 span = (lo, hi)
-            self.status.config(text=(T("{n} found from {lo} to {hi}", n=len(ev[1]), lo=span[0], hi=span[1]) if span
-                                     else T("{n} found", n=len(ev[1])))
-                               if self.mode.get() == "receive" else "")
+            other = sum(1 for f in ev[1] if not f.path.startswith(DEFAULT_ROOT + "/"))
+            line = (T("{n} found from {lo} to {hi}", n=len(ev[1]), lo=span[0], hi=span[1]) if span
+                    else T("{n} found", n=len(ev[1])))
+            if other:
+                line += "  ·  " + T("{n} from other folders (not DCIM)", n=other)
+            self.status.config(text=line if self.mode.get() == "receive" else "")
             self._sync_buttons()
         elif kind == "devices":
             self.scanning = False
