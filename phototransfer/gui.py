@@ -402,6 +402,9 @@ class App:
             ttk.Label(row, text=label, width=10).pack(side="left")
             entry = ttk.Entry(row, width=44)
             entry.pack(side="left")
+            btn = ttk.Button(row, text=T("Copy link"), style="Narrow.TButton", width=16)
+            btn.config(command=lambda e=entry, b=btn: self._copy_link(e, b))
+            btn.pack(side="left", padx=(6, 0))
             setattr(self, attr + "_row", row)
             setattr(self, attr, entry)
 
@@ -1113,6 +1116,15 @@ class App:
         if getattr(self, "_share_after", None):
             self.root.after_cancel(self._share_after)
         self._share_after = self.root.after(800, self._share_start)  # wait until the folder box stops changing
+
+    def _copy_link(self, entry: ttk.Entry, btn: ttk.Button) -> None:
+        url = entry.get()
+        if not url:
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(url)
+        btn.config(text=T("Copied!"))
+        self.root.after(1500, lambda: btn.winfo_exists() and btn.config(text=T("Copy link")))
 
     def _share_show(self) -> None:
         """Fill the QR code and the two links in the empty iPhone list."""

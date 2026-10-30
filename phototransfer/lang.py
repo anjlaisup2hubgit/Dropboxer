@@ -9,6 +9,8 @@ VI = {
     "iPhone to PC": "iPhone → máy tính",
     "Copy": "Sao chép",
     "Copy {n}": "Sao chép {n}",
+    "Copy link": "Sao chép liên kết",
+    "Copied!": "Đã sao chép!",
     "Send {n}": "Gửi {n}",
     "Add files…": "Thêm tệp…",
     "Folder…": "Thư mục…",
