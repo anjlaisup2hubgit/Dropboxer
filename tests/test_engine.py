@@ -560,3 +560,25 @@ def test_wifi_page_script_has_no_syntax_error(tmp_path):
     js.write_text(script, encoding="utf-8")
     done = subprocess.run([node, "--check", str(js)], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
+
+
+def test_memory_card_copies_and_is_read_only(tmp_path, device):
+    from phototransfer.sources.drive import DriveSource
+
+    base, data = device
+    card, dest = DriveSource(base), tmp_path / "out"
+    files = run(card.list_files("/DCIM"))
+    s = run(copy_files(card, files, "/DCIM", dest))
+    assert len(s.copied) == 3 and not s.failed
+    with pytest.raises(PermissionError):
+        run(card.write("/DCIM/x.jpg", [b"x"]))
+    with pytest.raises(PermissionError):
+        run(card.remove("/DCIM/100APPLE/IMG_0003.JPG"))
+    assert len(run(card.list_files("/DCIM"))) == 3  # nothing was added or removed
+
+
+def test_list_drives_finds_only_removable_drives_with_dcim():
+    from phototransfer.sources.drive import list_drives
+
+    for d in list_drives():  # whatever is plugged in right now
+        assert d.root[1:] == ":\\" and os.path.isdir(d.root + "DCIM")

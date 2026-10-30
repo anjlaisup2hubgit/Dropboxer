@@ -57,6 +57,10 @@ MANUAL = [
     ("p", "2. Unlock the iPhone and tap Trust on it."),
     ("p", "3. The files appear in the list by themselves; this can take a few seconds."),
     ("p", "4. Select files, check the Save in folder, then click Copy. Copied files are sorted into date folders inside Save in."),
+    ("s", "With a memory card, camera or USB drive:"),
+    ("p", "1. Put the card in a card reader, or plug in the camera in file-transfer mode (or an Android phone in File transfer mode, if Windows gives it a drive letter)."),
+    ("p", "2. Its photos and videos (the DCIM folder) appear in the list by themselves, as for an iPhone."),
+    ("p", "3. Select files and click Copy. The card is only read: nothing is written to it or deleted from it. An iPhone plugged in at the same time is used first."),
     ("s", "With Wi-Fi (no cable):"),
     ("p", "1. Put the phone and the PC on the same Wi-Fi."),
     ("p", "2. With no cable plugged in, the middle of the window shows a QR code and a Wi-Fi link."),
@@ -126,6 +130,7 @@ class App:
     def __init__(self, root: tk.Tk, source_dir: str | None, udid: str | None):
         self.root, self.source_dir, self.udid = root, source_dir, udid
         self.source: Source | None = None
+        self.want: str | None = None  # what the open source is: "iphone" or a memory card's drive letter
         self.all_files: list[RemoteFile] = []
         self.folder_stash: tuple[list[RemoteFile], set[str]] | None = None  # the list before an Explorer folder filtered it
         self.shown: list[RemoteFile] = []  # after the Show and date filters, newest first
@@ -568,7 +573,7 @@ class App:
         else:
             self.remote_row.pack_forget()
             self.dest_row.pack(fill="x")
-            self.status.config(text="" if self.all_files else T("Unlock your iPhone and tap Trust."))
+            self.status.config(text="" if self.all_files else T("Unlock your iPhone and tap Trust, or insert a memory card."))
         self._wings_state()
         self._fill_wings()
         self._fill()
@@ -964,6 +969,7 @@ class App:
         n = len(self.selected_files())
         ready = bool(self.source) and not self.busy
         if self.mode.get() == "send":
+            ready = ready and self.want in (None, "iphone")  # a memory card is read-only: sending needs the iPhone
             self.copy_btn.config(text=T("Send {n}", n=n) if n else T("Send"), state="normal" if ready and n else "disabled")
         else:
             self.copy_btn.config(text=T("Copy {n}", n=n) if n else T("Copy"), state="normal" if ready and n else "disabled")
@@ -976,6 +982,9 @@ class App:
             return
         on_phone = self.mode.get() == "receive"
         if on_phone and not self.source:
+            return
+        if on_phone and self.want not in (None, "iphone"):
+            messagebox.showinfo(T("Delete"), T("Memory cards are opened read-only. Delete from the card in Windows Explorer if you want to."))
             return
         n = len(files)
         ask = T("Delete {n} files from your iPhone? This cannot be undone.", n=n) if on_phone             else T("Move {n} files to the Recycle Bin?", n=n)
@@ -1033,7 +1042,13 @@ class App:
             n = len(await list_devices())
         except Exception:
             n = 0
-        self.events.put(("devices", n))
+        try:
+            from .sources.drive import list_drives
+
+            cards = list_drives()
+        except Exception:
+            cards = []
+        self.events.put(("devices", n, cards[0].root if cards else None))  # an iPhone wins over a card
 
     def connect(self) -> None:
         self.auto = False
@@ -1049,6 +1064,10 @@ class App:
             from .sources.local import LocalSource
 
             self.source = LocalSource(self.source_dir)
+        elif self.want not in (None, "iphone"):  # a memory card or camera: its drive letter
+            from .sources.drive import DriveSource
+
+            self.source = DriveSource(self.want)
         else:
             from .sources.iphone import IPhoneSource
 
@@ -1450,18 +1469,19 @@ class App:
             self._sync_buttons()
         elif kind == "devices":
             self.scanning = False
-            plugged = ev[1] or bool(self.source_dir)
-            if plugged and not self.source and not self.busy:
+            want = "iphone" if ev[1] or self.source_dir else ev[2]  # None, "iphone", or a card's drive letter
+            if want and not self.source and not self.busy:
+                self.want = want
                 self.connect()
                 self.auto = True
-            elif not plugged and self.source and not self.busy:
+            elif self.source and not self.busy and want != self.want:  # unplugged, or a card gave way to an iPhone (or the reverse)
                 asyncio.run_coroutine_threadsafe(self.source.close(), self.loop)
-                self.source, self.failed = None, False
+                self.source, self.failed, self.want = None, False, None
                 self._stash["receive"] = ([], set())
                 if self.mode.get() == "receive":
                     self.all_files, self.selected = [], set()
                     self._fill()
-                self.status.config(text=T("Plug in your iPhone with the cable."))
+                self.status.config(text=T("Plug in your iPhone with the cable, or insert a memory card."))
                 self._sync_buttons()
         elif kind == "folder":
             _, files, folder, only = ev
@@ -1558,7 +1578,8 @@ class App:
             self.busy = False
             if self.auto:  # the watcher tries again on its next look; no pop-up for a phone that is still locked
                 self.auto, self.failed = False, False
-                self.status.config(text=T("Unlock your iPhone and tap Trust."))
+                self.status.config(text=T("Unlock your iPhone and tap Trust.") if self.want == "iphone"
+                                   else T("Could not read the memory card. Take it out and put it back in."))
                 self._sync_buttons()
                 return
             self._drop_source()

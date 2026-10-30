@@ -24,6 +24,12 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m phototransfer copy D:\iPhonePhotos --by-date   # YYYY\YYYY-MM folders
 .\.venv\Scripts\python.exe -m phototransfer gui                  # window: browse by month, select, copy
 ```
+**Memory cards, cameras, USB drives:** anything Windows shows as a removable drive with a `DCIM` folder (an SD card in a reader, a camera in file-transfer mode, an Android phone in File transfer mode when it gets a drive letter) works the same way, and is only ever read, never written to or deleted from.
+```powershell
+.\.venv\Scripts\python.exe -m phototransfer devices                       # lists iPhones and cards, e.g. "E:  memory card / camera"
+.\.venv\Scripts\python.exe -m phototransfer copy D:\Cards --drive E: --by-date
+```
+The GUI connects to a card by itself when no iPhone is plugged in (an iPhone wins if both are). Android phones that use MTP (the Windows default, no drive letter) are not supported over USB; use the Wi-Fi page below, which works in any phone browser. Cards with a non-standard layout (no `DCIM`, e.g. some drones or dashcams) are not detected automatically; pass `--drive E: --root /` to the CLI.
 ```powershell
 .\.venv\Scripts\python.exe -m phototransfer send D:\ToPhone               # PC -> phone, into /PhotoTransfer
 .\.venv\Scripts\python.exe -m phototransfer send D:\ToPhone --to /Books   # pick another folder on the phone

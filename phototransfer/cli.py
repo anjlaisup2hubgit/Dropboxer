@@ -26,6 +26,10 @@ async def _open_source(args) -> Source:
         from .sources.local import LocalSource
 
         return LocalSource(args.source_dir)
+    if getattr(args, "drive", None):  # memory card, camera or USB drive: read-only
+        from .sources.drive import DriveSource
+
+        return DriveSource(args.drive)
     from .sources.iphone import IPhoneSource
 
     try:
@@ -41,12 +45,21 @@ async def _open_source(args) -> Source:
 async def cmd_devices(args) -> int:
     from .sources.iphone import list_devices
 
-    devs = await list_devices()
-    if not devs:
-        print("No iPhone found over USB. Plug it in, unlock it, and tap 'Trust'.")
-        return 1
+    from .sources.drive import list_drives
+
+    try:
+        devs = await list_devices()
+    except Exception:  # no Apple Mobile Device Service must not hide a memory card
+        devs = []
+    drives = list_drives()
     for d in devs:
         print(f"{d['udid']}  ({d['connection']})")
+    for d in drives:
+        print(f"{d.root[:2]}  memory card / camera: {d.label or 'no name'}  (use --drive {d.root[:2]})")
+    if not devs and not drives:
+        print("No iPhone found over USB. Plug it in, unlock it, and tap 'Trust'.\n"
+              "No memory card found either: insert it, or plug in the camera in file-transfer mode.")
+        return 1
     return 0
 
 
@@ -184,8 +197,9 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--udid", help="Device UDID (default: the connected device)")
         sp.add_argument("--root", default=DEFAULT_ROOT, help=f"Folder on the device (default {DEFAULT_ROOT})")
         sp.add_argument("--source-dir", help="Use a local folder instead of an iPhone (for testing)")
+        sp.add_argument("--drive", help="Read from a memory card, camera or USB drive, e.g. E: (see 'devices')")
 
-    sub.add_parser("devices", help="List USB-connected iPhones").set_defaults(fn=cmd_devices)
+    sub.add_parser("devices", help="List USB-connected iPhones and memory cards").set_defaults(fn=cmd_devices)
     sp = sub.add_parser("list", help="List camera-roll files")
     common(sp)
     sp.set_defaults(fn=cmd_list)
