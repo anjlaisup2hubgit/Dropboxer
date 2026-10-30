@@ -12,7 +12,7 @@ main{margin:0 auto;padding:0 16px 24px;max-width:760px}
 h2{font-size:1.1rem;font-weight:700;margin:22px 0 10px}
 .up{background:#f8fafd;border:1px solid #c9d5e2;border-radius:6px;padding:14px;margin-bottom:14px}
 button,input[type=file]{font-size:1rem;font-family:inherit}
-button{padding:8px 16px;border-radius:6px;border:1px solid #c9d5e2;background:#f8fafd;color:#1f2933;cursor:pointer;font-weight:600}
+button{padding:10px 16px;min-height:40px;border-radius:6px;border:1px solid #c9d5e2;background:#f8fafd;color:#1f2933;cursor:pointer;font-weight:600}
 button:hover{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}
 button.pri{background:#2b6cb0;border-color:#2b6cb0;color:#fff} button.pri:hover{background:#1f5290;color:#fff}
 button.danger{color:#b5352b;border-color:#e3c4c0} button.danger:hover{background:#fdeceb;color:#b5352b}
@@ -22,7 +22,7 @@ small,.muted{color:#66727f} .ok{color:#2e7d46} .bad{color:#b5352b}
 .grid a{display:block;aspect-ratio:1;background:#fff;border:1px solid #c9d5e2;border-radius:6px;overflow:hidden;position:relative;color:#1f2933;text-decoration:none}
 .grid img,.grid video{width:100%;height:100%;object-fit:cover}
 #qr{background:#fff;border:1px solid #c9d5e2;display:inline-block;padding:10px;border-radius:6px;margin:12px 0}
-#qr svg{display:block;width:240px;height:240px}
+#qr svg{display:block;width:min(240px,70vw);height:auto;aspect-ratio:1}
 #log div,#plog div{font-size:.85rem;margin:4px 0;color:#66727f} #log div.ok,#plog div.ok{color:#2e7d46} #log div.bad,#plog div.bad{color:#b5352b}
 code{word-break:break-all;font-size:.8rem;color:#66727f}
 </style></head><body>
@@ -30,13 +30,13 @@ code{word-break:break-all;font-size:.8rem;color:#66727f}
 <div id="pc" hidden>
   <h2>Receive on this PC</h2>
   <div class="up">
-    Use Chrome or Edge. Photos go straight from the phone to the folder you pick; nothing is stored on a server.<br><br>
-    <button id="pick" class="pri">1. Choose the folder to save into</button> <span id="folder" class="muted"></span>
+    Photos go straight from your phone to the folder you pick. No server stores them.<br><br>
+    <button id="pick" class="pri">Choose save folder</button> <div id="folder" class="muted" style="margin-top:8px"></div>
   </div>
   <div class="up" id="step2" hidden>
-    Scan this with the phone camera (or open the link on the phone):<br>
-    <div id="qr"></div><br><code id="link"></code><br><br>
-    <button id="copy">Copy link</button> <button id="again" hidden>New code</button>
+    Scan with your phone camera:<br>
+    <div id="qr"></div><br><code id="link"></code><br>
+    <button id="copy" style="margin-top:12px">Copy link</button> <button id="again" hidden>New code</button>
     <div id="state" class="muted"></div>
   </div>
   <div id="log"></div>
@@ -46,8 +46,8 @@ code{word-break:break-all;font-size:.8rem;color:#66727f}
   <h2>Send to this PC</h2>
   <div class="up"><b id="pstate">Connecting to the PC…</b></div>
   <div class="up" id="send" hidden>
-    Photos: <input id="files" type="file" multiple accept="image/*,video/*"><br><br>
-    <small>Long videos (if the tick will not press): save them to Files first, then use Browse here.</small><br><br>
+    Files: <input id="files" type="file" multiple accept="image/*,video/*"><br><br>
+    <small>Can't pick a long video? Save it to Files first, then Browse.</small><br><br>
     <button id="go" class="pri">Upload</button> <button id="stop" hidden class="danger">Stop</button>
     <div id="total" class="muted"></div><div id="plog"></div>
   </div>
@@ -79,7 +79,7 @@ function waitOpen(ch){return new Promise((res,rej)=>{if(ch.readyState==='open')r
 // ---------------- PC side ----------------
 async function pcMain(){
   $('pc').hidden=false;
-  if(!window.showDirectoryPicker){$('pick').disabled=true;$('folder').textContent='This browser cannot save into a folder. Use Chrome or Edge on the PC.';$('folder').className='bad';return;}
+  if(!window.showDirectoryPicker){$('pick').disabled=true;$('folder').textContent='Open this page in Chrome or Edge to save files.';$('folder').className='bad';return;}
   let dir=null,session=0;
   $('pick').onclick=async()=>{try{dir=await showDirectoryPicker({mode:'readwrite'});}catch(e){return;}
     $('folder').textContent=dir.name;$('step2').hidden=false;start();};
@@ -94,16 +94,16 @@ async function pcMain(){
     const link=location.origin+location.pathname+'#'+room+'.'+key;
     $('link').textContent=link;$('copy').onclick=()=>navigator.clipboard.writeText(link);
     const q=qrcode(0,'M');q.addData(link);q.make();$('qr').innerHTML=q.createSvgTag({cellSize:4,margin:0});
-    $('state').textContent='Waiting for the phone (this code lasts 5 minutes)…';
+    $('state').textContent='Waiting for your phone (code lasts 5 min)…';
     for(let i=0;i<300&&me===session;i++){
       const a=await relay('GET',room,'answer');
       if(a.ok){await pc.setRemoteDescription(await dec(key,await a.text()));break;}
       await sleep(1000);
     }
     if(me!==session)return pc.close();
-    if(pc.signalingState!=='stable'){$('state').textContent='Timed out.';$('again').hidden=false;pc.close();return;}
-    try{await waitOpen(ch);}catch(e){$('state').textContent='Could not connect directly (strict network?). '+e.message;$('state').className='bad';$('again').hidden=false;return;}
-    $('state').textContent='Connected. Send photos from the phone.';$('state').className='ok';
+    if(pc.signalingState!=='stable'){$('state').textContent='Code expired.';$('again').hidden=false;pc.close();return;}
+    try{await waitOpen(ch);}catch(e){$('state').textContent='Could not connect. '+e.message;$('state').className='bad';$('again').hidden=false;return;}
+    $('state').textContent='Connected. Send from your phone.';$('state').className='ok';
     receiver(ch,dir);
     pc.onconnectionstatechange=()=>{if(['disconnected','failed','closed'].includes(pc.connectionState)){$('state').textContent='Phone disconnected.';$('state').className='muted';$('again').hidden=false;}};
   }
@@ -142,16 +142,16 @@ async function phoneMain(room,key){
   $('phone').hidden=false;const st=m=>$('pstate').textContent=m;
   try{
     const o=await relay('GET',room,'offer');
-    if(!o.ok)return st('This link has expired. Make a new code on the PC.');
+    if(!o.ok)return st('Link expired. Make a new code on the PC.');
     const pc=new RTCPeerConnection(ICE);let ch=null;
     pc.ondatachannel=e=>{ch=e.channel;ch.binaryType='arraybuffer';};
     await pc.setRemoteDescription(await dec(key,await o.text()));
     await pc.setLocalDescription(await pc.createAnswer());await gathered(pc);
     const r=await relay('POST',room,'answer',await enc(key,{sdp:pc.localDescription.sdp,type:'answer'}));
-    if(!r.ok)return st(r.status===409?'This code was already used. Make a new one on the PC.':'Relay problem.');
+    if(!r.ok)return st(r.status===409?'Code already used. Make a new one on the PC.':'Relay problem.');
     st('Connecting directly to the PC…');
     for(let i=0;i<150&&!(ch&&ch.readyState==='open');i++)await sleep(200);
-    if(!(ch&&ch.readyState==='open'))return st('Could not connect (the phone and PC may be on networks that block direct links). Try the Wi-Fi version.');
+    if(!(ch&&ch.readyState==='open'))return st('Could not connect. Try the Wi-Fi version.');
     st('Connected ✓');$('send').hidden=false;
     ch.onclose=()=>{st('Disconnected.');};
     sender(ch);
@@ -185,7 +185,7 @@ function sender(ch){
         }
         if(stopped){ch.send(JSON.stringify({t:'end',id}));d.textContent=f.name+' stopped';d.className='bad';break;}
         ch.send(JSON.stringify({t:'end',id}));
-        const ok=await ack;d.textContent=f.name+(ok?' ✓ sent':' ✗ PC reported a problem');d.className=ok?'ok':'bad';
+        const ok=await ack;d.textContent=f.name+(ok?' ✓ sent':' ✗ failed');d.className=ok?'ok':'bad';
       }catch(e){d.textContent=f.name+' ✗ '+e.message;d.className='bad';break;}
       done+=f.size;
     }
