@@ -196,13 +196,13 @@ async function phoneSink(m){
       row.textContent=m.name+' ✓ ';row.className='ok';row.append(a);unprog();return true;}};
 }
 function sender(ch,acks,p){
-  let stopped=false;
+  let stopped=false,wake=null;const stopP=()=>new Promise(r=>wake=r);
   const inputs=[$(p+'files'),$(p+'files2')].filter(Boolean),pick=()=>inputs.flatMap(i=>[...i.files]);
   inputs.forEach(i=>i.onchange=()=>{$(p+'go').disabled=!pick().length;});
-  $(p+'stop').onclick=()=>{stopped=true;};
+  $(p+'stop').onclick=()=>{stopped=true;if(wake)wake();};
   $(p+'go').onclick=async()=>{
     const files=pick();if(!files.length)return;
-    stopped=false;$(p+'go').disabled=true;$(p+'stop').hidden=false;$(p+'log').textContent='';prog(0);
+    stopped=false;const sp=stopP();$(p+'go').disabled=true;$(p+'stop').hidden=false;$(p+'log').textContent='';prog(0);
     const all=files.reduce((n,f)=>n+f.size,0);let done=0,sentOk=0;
     for(const f of files){
       if(stopped)break;
@@ -214,7 +214,8 @@ function sender(ch,acks,p){
         while(off<f.size&&!stopped){
           const blk=await f.slice(off,Math.min(off+1024*1024,f.size)).arrayBuffer();
           for(let p=0;p<blk.byteLength;p+=PIECE){
-            if(ch.bufferedAmount>HIGH)await new Promise(r=>ch.addEventListener('bufferedamountlow',r,{once:true}));
+            if(ch.bufferedAmount>HIGH)await Promise.race([new Promise(r=>ch.addEventListener('bufferedamountlow',r,{once:true})),sp]);
+            if(stopped)break;
             if(ch.readyState!=='open')throw new Error('connection lost');
             ch.send(blk.slice(p,p+PIECE));
           }
@@ -222,9 +223,9 @@ function sender(ch,acks,p){
           d.textContent=f.name+' … '+Math.floor(100*off/Math.max(1,f.size))+'%';
           $(p+'total').textContent='Total: '+Math.floor(100*(done+off)/Math.max(1,all))+'%';prog(100*(done+off)/Math.max(1,all));
         }
-        if(stopped){ch.send(JSON.stringify({t:'end',id}));d.textContent=f.name+' stopped';d.className='bad';break;}
+        if(stopped){try{ch.send(JSON.stringify({t:'end',id}));}catch(e){}d.textContent=f.name+' stopped';d.className='bad';break;}
         ch.send(JSON.stringify({t:'end',id}));
-        const ok=await ack;d.textContent=f.name+(ok?' ✓ sent':' ✗ failed');d.className=ok?'ok':'bad';if(ok)sentOk++;
+        const ok=await Promise.race([ack,sp.then(()=>false)]);d.textContent=f.name+(ok?' ✓ sent':' ✗ failed');d.className=ok?'ok':'bad';if(ok)sentOk++;
       }catch(e){d.textContent=f.name+' ✗ '+e.message;d.className='bad';break;}
       done+=f.size;
     }
