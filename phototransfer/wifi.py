@@ -189,7 +189,7 @@ def app_icon(size: int, rounded: bool = False) -> bytes:
     big = size * 4
     im = Image.new("RGBA", (big, big), "white" if not rounded else (0, 0, 0, 0))
     d, u = ImageDraw.Draw(im), big / 100
-    edge = 8 * u
+    edge = 4 * u
     d.rounded_rectangle([edge / 2, edge / 2, big - edge / 2, big - edge / 2], radius=22 * u, fill="white",
                         outline="#85b7eb", width=int(edge))
     w = int(5.5 * u)
