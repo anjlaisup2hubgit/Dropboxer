@@ -34,7 +34,8 @@ small,.muted{color:#66727f} .ok{color:#2e7d46} .bad{color:#b5352b}
 #qr{background:#fff;border:1px solid #c9d5e2;display:inline-block;padding:10px;border-radius:8px}
 #qr svg{display:block;width:min(240px,70vw);height:auto;aspect-ratio:1}
 #log div,#plog div{font-size:.85rem;margin:4px 0;color:#66727f} #log div.ok,#plog div.ok{color:#2e7d46} #log div.bad,#plog div.bad{color:#b5352b}
-.names{display:flex;flex-direction:column;gap:6px;width:100%}.names input{font:inherit;font-size:1rem;padding:8px 10px;border:1px solid #c9d5e2;border-radius:8px;width:100%;box-sizing:border-box;background:#fff;color:#1f2933}
+.names{display:flex;flex-direction:column;gap:8px;width:100%}.names input{font:inherit;font-size:1rem;padding:8px 10px;border:1px solid #c9d5e2;border-radius:8px;flex:1;min-width:0;box-sizing:border-box;background:#fff;color:#1f2933}
+.names .item{display:flex;align-items:center;gap:10px}.names .thumb{flex:none;width:64px;height:64px;border-radius:8px;border:1px solid #c9d5e2;background:#fff;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:600;color:#66727f;overflow:hidden}
 </style></head><body>
 <header><h1>Dropboxer</h1></header><div id="zig"><i></i></div><main>
 <div id="pc" hidden>
@@ -54,8 +55,8 @@ small,.muted{color:#66727f} .ok{color:#2e7d46} .bad{color:#b5352b}
   <div class="up" id="xsend" hidden>
     <b>Files to send</b>
     <input id="xfiles" type="file" multiple>
-    <div id="xlist" class="names"></div>
     <div class="row"><button id="xgo" class="pri" disabled>Send</button><button id="xstop" hidden class="danger">Stop</button></div>
+    <div id="xlist" class="names"></div>
     <small id="xwarn" class="bad" hidden></small>
     <div id="xtotal" class="muted"></div><div id="xlog"></div>
   </div>
@@ -69,8 +70,8 @@ small,.muted{color:#66727f} .ok{color:#2e7d46} .bad{color:#b5352b}
     <b>Photos, videos and documents</b>
     <small>If the tick will not press, save the file to Files first.</small>
     <input id="pfiles" type="file" multiple>
-    <div id="plist" class="names"></div>
     <div class="row"><button id="pgo" class="pri" disabled>Upload</button><button id="pstop" hidden class="danger">Stop</button></div>
+    <div id="plist" class="names"></div>
     <div id="ptotal" class="muted"></div><div id="plog"></div>
   </div>
   <div id="rbox" hidden><h2>From this PC</h2><div class="up" id="rgot"></div></div>
@@ -198,10 +199,18 @@ async function phoneSink(m){
 function sender(ch,acks,p){
   let stopped=false,wake=null;const stopP=()=>new Promise(r=>wake=r);
   const input=$(p+'files'),list=$(p+'list');let picked=[];  // picked: {f, name} so each file can be renamed before sending
-  input.onchange=()=>{picked=[...input.files].map(f=>({f,name:f.name}));list.textContent='';
+  let urls=[];
+  const thumb=f=>{let el;const u=()=>{const x=URL.createObjectURL(f);urls.push(x);return x;};
+    if(f.type.startsWith('image/')){el=document.createElement('img');el.src=u();}
+    else if(f.type.startsWith('video/')){el=document.createElement('video');el.muted=true;el.playsInline=true;el.preload='metadata';el.src=u()+'#t=0.1';}
+    else{el=document.createElement('div');el.textContent=(f.name.split('.').pop()||'file').slice(0,5).toUpperCase();}
+    el.className='thumb';return el;};
+  input.onchange=()=>{urls.forEach(URL.revokeObjectURL);urls=[];picked=[...input.files].map(f=>({f,name:f.name}));list.textContent='';
     if(picked.length){const n=document.createElement('small');n.className='muted';n.textContent='Files are sent one at a time, in this order. You can rename each one first.';list.appendChild(n);}
     picked.forEach(e=>{const t=document.createElement('input');t.type='text';t.value=e.name;t.setAttribute('aria-label','File name');
-      t.oninput=()=>{e.name=t.value.trim()||e.f.name;};list.appendChild(t);});
+      t.oninput=()=>{e.name=t.value.trim()||e.f.name;};
+      t.onfocus=()=>setTimeout(()=>{t.select();t.setSelectionRange(0,t.value.length);},0);  // select all so typing replaces the old name
+      const row=document.createElement('div');row.className='item';row.append(thumb(e.f),t);list.appendChild(row);});
     $(p+'go').disabled=!picked.length;
     // The phone keeps received files in memory, so a big batch can make iOS reload the tab.
     const w=$(p+'warn'),big=picked.reduce((n,e)=>n+e.f.size,0);
