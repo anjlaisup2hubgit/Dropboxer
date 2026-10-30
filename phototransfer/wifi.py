@@ -218,22 +218,24 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport"
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#2b6cb0">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Dropboxer">
 <title>Dropboxer</title><style>
-body{{font-family:Nunito,ui-rounded,system-ui,sans-serif;margin:0 auto;padding:16px;max-width:760px;background:#eef3f8;color:#1f2933}}
-h2{{font-size:1.5rem;font-weight:800;margin:22px 0 10px}}
-.up{{background:#fff;border:1px solid #d5dfea;border-radius:10px;padding:14px;margin-bottom:14px;overflow:hidden}}
+body{{font-family:"Segoe UI",system-ui,sans-serif;margin:0 auto;padding:16px;max-width:760px;background:#eef3f8;color:#1f2933}}
+h2{{font-size:1.1rem;font-weight:700;margin:22px 0 10px}}
+.up{{background:#f8fafd;border:1px solid #c9d5e2;border-radius:6px;padding:14px;margin-bottom:14px;overflow:hidden}}
 .up::before{{content:"";display:block;height:72px;margin:-14px -14px 12px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Crect width='40' height='20' fill='%23a9c3e0'/%3E%3Cpath d='M0 0h40L20 20z' fill='%23bcd1e8'/%3E%3C/svg%3E")}}
 .up:nth-of-type(2n)::before{{background:repeating-linear-gradient(135deg,#8fb0d4 0 10px,#9dbadb 10px 20px)}}
 .up:nth-of-type(3n)::before{{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23d3e1f0'/%3E%3Cpath d='M0 0h20a20 20 0 0 1-20 20zM40 40H20a20 20 0 0 1 20-20z' fill='%23c0d3e8'/%3E%3C/svg%3E")}}
 .up:nth-of-type(4n)::before{{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Crect width='40' height='20' fill='%23dbe8f5'/%3E%3Cpath d='M0 0h40L20 20z' fill='%23e8f1fa'/%3E%3C/svg%3E")}}
 button,input[type=file]{{font-size:1rem;font-family:inherit}}
-button{{padding:8px 16px;border-radius:6px;border:1.5px solid #2b6cb0;background:#fff;color:#2b6cb0;cursor:pointer;font-weight:600}}
-button:hover{{background:#eaf2fb}}
+button{{padding:10px 16px;min-height:40px;border-radius:6px;border:1px solid #c9d5e2;background:#f8fafd;color:#1f2933;cursor:pointer;font-weight:600}}
+input[type=file]::file-selector-button{{margin-right:12px;padding:10px 16px;min-height:40px;border-radius:6px;border:1px solid #c9d5e2;background:#f8fafd;color:#1f2933;cursor:pointer;font-weight:600}}
+button:hover{{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}}
+input[type=file]::file-selector-button:hover{{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}}
 button.pri{{background:#2b6cb0;border-color:#2b6cb0;color:#fff}} button.pri:hover{{background:#1f5290;color:#fff}}
-button.danger{{color:#b5352b;border-color:#b5352b}} button.danger:hover{{background:#fdeceb;color:#b5352b}}
+button.danger{{color:#b5352b;border-color:#e3c4c0}} button.danger:hover{{background:#fdeceb;color:#b5352b}}
 button:disabled{{opacity:.4}}
 small,.muted{{color:#66727f}} .ok{{color:#2e7d46}} .bad{{color:#b5352b}}
 .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}}
-.grid a{{display:block;aspect-ratio:1;background:#fff;border:1px solid #d5dfea;border-radius:10px;overflow:hidden;position:relative;color:#1f2933;text-decoration:none}}
+.grid a{{display:block;aspect-ratio:1;background:#fff;border:1px solid #c9d5e2;border-radius:6px;overflow:hidden;position:relative;color:#1f2933;text-decoration:none}}
 .grid img,.grid video{{width:100%;height:100%;object-fit:cover}}
 #log div{{font-size:.85rem;margin:4px 0;color:#66727f}} #log div.ok{{color:#2e7d46}} #log div.bad{{color:#b5352b}}
 .grid img,.grid video{{pointer-events:none}}
