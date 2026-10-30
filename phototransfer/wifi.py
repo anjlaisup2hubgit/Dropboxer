@@ -181,20 +181,23 @@ def to_jpeg(data: bytes, max_side: int = VIEW_MAX) -> bytes | None:
         return None
 
 
-def app_icon(size: int) -> bytes:
-    """The one Dropboxer icon: a white arrow dropping into a tray, on blue. Drawn big and shrunk for smooth edges."""
+def app_icon(size: int, rounded: bool = False) -> bytes:
+    """The one Dropboxer icon: two blue swap arrows on white with a light-blue outline. Drawn big and shrunk for
+    smooth edges. `rounded` leaves the corners transparent (app windows); home-screen icons stay square."""
     from PIL import Image, ImageDraw
 
     big = size * 4
-    im = Image.new("RGB", (big, big), "#2b6cb0")
+    im = Image.new("RGBA", (big, big), "white" if not rounded else (0, 0, 0, 0))
     d, u = ImageDraw.Draw(im), big / 100
+    edge = 4 * u
+    d.rounded_rectangle([edge / 2, edge / 2, big - edge / 2, big - edge / 2], radius=22 * u, fill="white",
+                        outline="#85b7eb", width=int(edge))
     w = int(8 * u)
-    d.line([(50 * u, 20 * u), (50 * u, 50 * u)], fill="white", width=w)
-    d.polygon([(50 * u, 68 * u), (30 * u, 46 * u), (70 * u, 46 * u)], fill="white")
-    tray = [(24 * u, 62 * u), (24 * u, 80 * u), (76 * u, 80 * u), (76 * u, 62 * u)]
-    d.line(tray, fill="white", width=w, joint="curve")
-    for x, y in tray:
-        d.ellipse([x - w / 2, y - w / 2, x + w / 2, y + w / 2], fill="white")
+    for pts in ([(24, 38), (74, 38)], [(62, 26), (76, 38), (62, 50)], [(76, 64), (26, 64)], [(38, 52), (24, 64), (38, 76)]):
+        xy = [(x * u, y * u) for x, y in pts]
+        d.line(xy, fill="#2b6cb0", width=w, joint="curve")
+        for x, y in xy:
+            d.ellipse([x - w / 2, y - w / 2, x + w / 2, y + w / 2], fill="#2b6cb0")
     out = io.BytesIO()
     im.resize((size, size), Image.LANCZOS).save(out, "PNG")
     return out.getvalue()
