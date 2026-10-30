@@ -77,7 +77,7 @@ async def cmd_devices(args) -> int:
 
 async def cmd_list(args) -> int:
     async with await _open_source(args) as src:
-        files = await src.list_files(args.root)
+        files = await src.list_many([args.root] if args.root else src.roots)
     total = sum(f.size for f in files)
     for f in files:
         when = datetime.fromtimestamp(f.mtime).strftime("%Y-%m-%d %H:%M")
@@ -88,7 +88,7 @@ async def cmd_list(args) -> int:
 
 async def cmd_copy(args) -> int:
     async with await _open_source(args) as src:
-        files = await src.list_files(args.root)
+        files = await src.list_many([args.root] if args.root else src.roots)
         if args.limit:
             files = files[: args.limit]
         print(f"{len(files)} files, {_human(sum(f.size for f in files))} -> {args.dest}")
@@ -100,7 +100,7 @@ async def cmd_copy(args) -> int:
             end = "\n" if done >= total else "\r"
             print(f"  {path}  {pct:3d}%  {_human(done)}/{_human(total)}   ", end=end, flush=True)
 
-        summary = await copy_files(src, files, args.root, Path(args.dest), progress, jobs=args.jobs, by_date=args.by_date)
+        summary = await copy_files(src, files, args.root or DEFAULT_ROOT, Path(args.dest), progress, jobs=args.jobs, by_date=args.by_date)
 
     print(
         f"\ncopied {len(summary.copied)} ({_human(summary.bytes_copied)}), "
@@ -207,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
 
     def common(sp):
         sp.add_argument("--udid", help="Device UDID (default: the connected device)")
-        sp.add_argument("--root", default=DEFAULT_ROOT, help=f"Folder on the device (default {DEFAULT_ROOT})")
+        sp.add_argument("--root", help=f"One folder on the device, or / for everything (default: {DEFAULT_ROOT}, plus Pictures, Movies, PRIVATE... on cards and Android phones)")
         sp.add_argument("--source-dir", help="Use a local folder instead of an iPhone (for testing)")
         sp.add_argument("--drive", help="Read from a memory card, camera or USB drive, e.g. E: (see 'devices')")
         sp.add_argument("--mtp", nargs="?", const="", metavar="NAME", help="Read from an Android phone or camera in File transfer mode (part of its name; none = the first one)")

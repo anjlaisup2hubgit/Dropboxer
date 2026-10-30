@@ -9,6 +9,8 @@ Uses the open-source [pymobiledevice3](https://github.com/doronz88/pymobiledevic
 - Python 3.10+
 - An iPhone, USB cable, phone unlocked, and "Trust This Computer" accepted.
 
+**iCloud Photos:** if the iPhone has iCloud Photos with *Optimize iPhone Storage*, older originals exist only in iCloud and cannot be copied over USB. The window warns once when it sees signs of iCloud Photos (a hint, not proof). To get everything, on the phone turn on Settings > Photos > *Download and Keep Originals*, wait until it finishes, then connect again.
+
 ## Setup
 ```powershell
 python -m venv .venv
@@ -29,7 +31,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m phototransfer devices                       # lists iPhones and cards, e.g. "E:  memory card / camera"
 .\.venv\Scripts\python.exe -m phototransfer copy D:\Cards --drive E: --by-date
 ```
-The GUI connects to a card by itself when no iPhone is plugged in (an iPhone wins if both are). **Android phones (MTP):** a phone set to "File transfer" in its USB notification gets no drive letter, so it is read through the Windows shell (same view as Explorer's This PC; needs pywin32, installed with the app). `devices` lists it; the GUI connects to it by itself when no iPhone or card is present (order: iPhone, card, phone); on the command line use `copy D:\Phone --mtp` (or `--mtp "Pixel"`). Photos in the phone's `DCIM` are listed (a second storage such as an SD card appears under `/DCIM/<its name>/`); hidden `.thumbnails`/trash entries are skipped. The shell cannot stream, so each file is copied to a temporary folder first (room for the largest video needed on `%TEMP%`) and then verified and moved like any other; listing thousands of files takes a while. The phone must stay unlocked. Read-only. Not yet tried on a real phone: please report what breaks. Cards with a non-standard layout (no `DCIM`, e.g. some drones or dashcams) are not detected automatically; pass `--drive E: --root /` to the CLI.
+The GUI connects to a card by itself when no iPhone is plugged in (an iPhone wins if both are). **Android phones (MTP):** a phone set to "File transfer" in its USB notification gets no drive letter, so it is read through the Windows shell (same view as Explorer's This PC; needs pywin32, installed with the app). `devices` lists it; the GUI connects to it by itself when no iPhone or card is present (order: iPhone, card, phone); on the command line use `copy D:\Phone --mtp` (or `--mtp "Pixel"`). Photos in the phone's `DCIM` are listed (a second storage such as an SD card appears under `/DCIM/<its name>/`); hidden `.thumbnails`/trash entries are skipped. The shell cannot stream, so each file is copied to a temporary folder first (room for the largest video needed on `%TEMP%`) and then verified and moved like any other; listing thousands of files takes a while. The phone must stay unlocked. Read-only. Not yet tried on a real phone: please report what breaks. **Beyond `DCIM`:** cards and Android phones are also searched in the other folders where media lives (`PRIVATE` for Sony/AVCHD clips, `MP_ROOT`, `AVCHD`, `BDMV`, `Pictures`, `Movies`, `Videos`; on Android also `WhatsApp` and `Telegram`), and a card with only `PRIVATE`, `MP_ROOT` or `AVCHD` is detected too. Those files are copied with their folder path (`PRIVATE\M4ROOT\CLIP\...`) unless Organize by date is on. For anything else pass `--root /` (CLI) to list the whole device, or `--root /Folder` for one folder. An iPhone only exposes `DCIM` over USB, so WhatsApp and other app media on it are not reachable.
 ```powershell
 .\.venv\Scripts\python.exe -m phototransfer send D:\ToPhone               # PC -> phone, into /PhotoTransfer
 .\.venv\Scripts\python.exe -m phototransfer send D:\ToPhone --to /Books   # pick another folder on the phone
@@ -64,6 +66,7 @@ Previews load only for the photos on screen and are cached in `~/.phototransfer/
 
 ## Tray app (no window, no terminal)
 `python -m phototransfer tray [folder]` (also what `PhoneTransfer.exe` does when started with no arguments) keeps the Wi-Fi share running from a tray icon: left-click shows the QR code, right-click has Copy link, the Tailscale link, Open photos folder, Open full window (USB copy), **Start with Windows**, and Quit. It shares the GUI's "Copy to" folder. A balloon says when files arrive.
+**First start on another PC:** `PhoneTransfer.exe` is not code-signed (a certificate costs money), so Windows SmartScreen shows "Windows protected your PC": click *More info* > *Run anyway*. Some antivirus tools flag one-file Python builds too; allow it, or run from source instead. Signing it with an Authenticode certificate is the fix if you hand it to others.
 Build the single file: `pip install -e .[dev]`, then
 `pyinstaller --noconfirm --onefile --noconsole --name PhoneTransfer --collect-all pymobiledevice3 --collect-all pillow_heif --collect-all av --hidden-import pystray._win32 run_tray.py` → `dist\PhoneTransfer.exe` (~90 MB, first start takes ~15 s while it unpacks). Add one firewall rule for that .exe and it keeps working wherever you move it.
 

@@ -647,3 +647,38 @@ def test_phone_in_file_transfer_mode_is_found_and_copied(tmp_path, monkeypatch):
     tmp = src._tmp
     run(src.close())
     assert not tmp.exists()  # no staged copies are left behind
+
+
+def test_files_outside_dcim_are_found_and_copied(tmp_path, device):
+    base, _ = device
+    (base / "PRIVATE" / "M4ROOT" / "CLIP").mkdir(parents=True)
+    (base / "PRIVATE" / "M4ROOT" / "CLIP" / "C0001.MP4").write_bytes(b"clip")
+    (base / "Pictures" / "Screenshots").mkdir(parents=True)
+    (base / "Pictures" / "Screenshots" / "s.png").write_bytes(b"shot")
+    src, dest = LocalSource(base), tmp_path / "out"
+    from phototransfer.sources.drive import MEDIA_FOLDERS
+
+    files = run(src.list_many(["/" + f for f in MEDIA_FOLDERS]))  # Movies, BDMV... do not exist: skipped
+    assert {f.path.rsplit("/", 1)[1] for f in files} >= {"C0001.MP4", "s.png", "IMG_0001.HEIC"}
+    s = run(copy_files(src, files, "/DCIM", dest))
+    assert not s.failed and (dest / "PRIVATE" / "M4ROOT" / "CLIP" / "C0001.MP4").read_bytes() == b"clip"
+    assert (dest / "100APPLE" / "IMG_0001.HEIC").exists()  # the DCIM layout is unchanged
+
+
+def test_list_many_fails_when_the_source_itself_is_missing(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        run(LocalSource(tmp_path / "gone").list_many(["/DCIM", "/Pictures"]))
+
+
+def test_iphone_icloud_hint():
+    from phototransfer.sources.iphone import IPhoneSource
+
+    class Afc:
+        def __init__(self, names): self.names = names
+        async def listdir(self, p):
+            if self.names is None: raise OSError("no such folder")
+            return self.names
+
+    assert run(IPhoneSource(None, Afc(["Photos.sqlite", "CPLAssets"])).icloud_photos_on())
+    assert not run(IPhoneSource(None, Afc(["Photos.sqlite"])).icloud_photos_on())
+    assert not run(IPhoneSource(None, Afc(None)).icloud_photos_on())

@@ -1083,8 +1083,10 @@ class App:
             from .sources.iphone import IPhoneSource
 
             self.source = await IPhoneSource.connect(self.udid)
-        files = await self.source.list_files(DEFAULT_ROOT)
+        files = await self.source.list_many(self.source.roots)
         self.events.put(("listed", files))
+        if await self.source.icloud_photos_on():
+            self.events.put(("icloud",))
 
     def start_copy(self) -> None:
         files, dest = self.selected_files(), self.dest.get().strip()
@@ -1458,6 +1460,12 @@ class App:
 
     def _handle(self, ev: tuple) -> None:
         kind = ev[0]
+        if kind == "icloud":
+            if getattr(self, "_icloud_told", False):  # once per run, not at every reconnect
+                return
+            self._icloud_told = True
+            messagebox.showinfo(T("iCloud Photos"), T("This iPhone seems to use iCloud Photos. If Optimize iPhone Storage is on, older photos and videos are only in iCloud and cannot be copied over USB. Turn on Settings > Photos > Download and Keep Originals, wait for it to finish, then connect again."))
+            return
         if kind == "listed":
             self.auto = False
             if self.mode.get() == "send":  # the PC to iPhone list on screen is not replaced

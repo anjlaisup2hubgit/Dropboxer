@@ -36,7 +36,12 @@ class Summary:
 
 
 def rel_path(file: RemoteFile, root: str) -> PurePosixPath:
-    return PurePosixPath(file.path).relative_to(PurePosixPath(root))
+    """The file's path under root; a file found in another folder of the device (Pictures, PRIVATE, ...) keeps its full path."""
+    path = PurePosixPath(file.path)
+    try:
+        return path.relative_to(PurePosixPath(root))
+    except ValueError:
+        return path.relative_to("/")
 
 
 def sha256_file(path: Path, limit: int | None = None) -> "hashlib._Hash":

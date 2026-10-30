@@ -24,8 +24,15 @@ class Drive:
         return f"{self.root[:2]} {self.label}".strip()
 
 
+# Cameras that keep clips outside DCIM (Sony PRIVATE/M4ROOT, AVCHD, MP_ROOT), and photos in plain folders.
+MEDIA_FOLDERS = ("DCIM", "PRIVATE", "MP_ROOT", "AVCHD", "BDMV", "Pictures", "Movies", "Videos")
+MARKERS = ("DCIM", "PRIVATE", "MP_ROOT", "AVCHD")  # a removable drive with one of these is offered as a card
+
+
 class DriveSource(LocalSource):
     """A drive's files, listed and read like a phone's; writing and deleting are refused."""
+
+    roots = tuple("/" + f for f in MEDIA_FOLDERS)
 
     def __init__(self, root: str | Path):
         root = str(root)
@@ -48,8 +55,8 @@ def _label(root: str) -> str:
     return buf.value if ok else ""
 
 
-def list_drives(folder: str = "DCIM") -> list[Drive]:
-    """Removable drives that contain `folder` at the top. Empty off Windows, or when nothing is plugged in."""
+def list_drives(folders: tuple[str, ...] = MARKERS) -> list[Drive]:
+    """Removable drives that contain one of `folders` at the top. Empty off Windows, or when nothing is plugged in."""
     if os.name != "nt":
         return []
     import ctypes
@@ -62,7 +69,7 @@ def list_drives(folder: str = "DCIM") -> list[Drive]:
         out = []
         for i, letter in enumerate(string.ascii_uppercase):
             root = f"{letter}:\\"
-            if mask & (1 << i) and kernel.GetDriveTypeW(root) == DRIVE_REMOVABLE and os.path.isdir(root + folder):
+            if mask & (1 << i) and kernel.GetDriveTypeW(root) == DRIVE_REMOVABLE and any(os.path.isdir(root + f) for f in folders):
                 out.append(Drive(root, _label(root)))
         return out
     finally:

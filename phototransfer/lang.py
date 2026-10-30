@@ -22,6 +22,9 @@ VI = {
     "Folder on iPhone": "Thư mục trên iPhone",
     "VLC (music player)": "VLC (nghe nhạc)",
     "Find them in {app}.": "Tìm trong {app}.",
+    "iCloud Photos": "Ảnh iCloud",
+    "This iPhone seems to use iCloud Photos. If Optimize iPhone Storage is on, older photos and videos are only in iCloud and cannot be copied over USB. Turn on Settings > Photos > Download and Keep Originals, wait for it to finish, then connect again.":
+        "iPhone này có vẻ dùng Ảnh iCloud. Nếu bật Tối ưu hóa dung lượng iPhone, ảnh và video cũ chỉ nằm trên iCloud và không thể sao chép qua USB. Hãy bật Cài đặt > Ảnh > Tải về và giữ bản gốc, chờ tải xong rồi kết nối lại.",
     "All": "Tất cả",
     "Photos": "Ảnh",
     "Gallery": "Thư viện",

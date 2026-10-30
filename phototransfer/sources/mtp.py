@@ -99,6 +99,8 @@ async def list_mtp_devices() -> list[MtpDevice]:
 
 
 class MtpSource(Source):
+    roots = ("/DCIM", "/Pictures", "/Movies", "/WhatsApp", "/Telegram")  # Android keeps screenshots, downloads and chat media outside DCIM
+
     def __init__(self, device: MtpDevice):
         self.device = device
         self._index: dict[str, object] = {}   # file path -> shell item, filled by list_files
@@ -119,11 +121,18 @@ class MtpSource(Source):
             raise PermissionError(f"{self.device.name} shows no storage. Unlock it and choose File transfer in its USB notification.")
         return found
 
-    def _list(self, root: str) -> list[RemoteFile]:
+    def _list_many(self, roots) -> list[RemoteFile]:
+        self._index = {}
+        seen: dict[str, RemoteFile] = {}
+        storages = self._storages()
+        for root in roots:
+            for f in self._list(root, storages):
+                seen.setdefault(f.path, f)
+        return sorted(seen.values(), key=lambda f: f.path)
+
+    def _list(self, root: str, storages: list) -> list[RemoteFile]:
         root = "/" + root.strip("/")
         out: list[RemoteFile] = []
-        self._index = {}
-        storages = self._storages()
         for n, storage in enumerate(storages):
             top = storage
             for part in [p for p in root.split("/") if p]:  # go down to the root folder inside this storage
@@ -153,6 +162,9 @@ class MtpSource(Source):
         self._n += 1
         dest = self._tmp / str(self._n)
         dest.mkdir()
+        free = shutil.disk_usage(self._tmp).free
+        if free < size + (64 << 20):
+            raise IOError(f"Not enough room on the temp drive to copy {_name(item)} from the phone ({size >> 20} MB needed, {free >> 20} MB free).")
         _shell().NameSpace(str(dest)).CopyHere(item, COPY_FLAGS)
         import pythoncom
 
@@ -177,7 +189,10 @@ class MtpSource(Source):
 
     # ---- Source interface ---------------------------------------------------------------------
     async def list_files(self, root: str) -> list[RemoteFile]:
-        return await _on_com(self._list, root)
+        return await self.list_many([root])
+
+    async def list_many(self, roots) -> list[RemoteFile]:
+        return await _on_com(self._list_many, list(roots))
 
     async def read(self, path: str, offset: int = 0, chunk_size: int = 1 << 20) -> AsyncIterator[bytes]:
         entry = self._staged.get(path)

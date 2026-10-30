@@ -42,6 +42,16 @@ class IPhoneSource(Source):
         await afc.__aenter__()
         return cls(lockdown, afc)
 
+    async def icloud_photos_on(self) -> bool:
+        """iCloud Photos keeps its sync state in /PhotoData/CPL*; with Optimize Storage the older originals are not on the phone.
+
+        A hint, not proof: the phone does not say which setting is on.
+        """
+        try:
+            return any(name.upper().startswith("CPL") for name in await self._afc.listdir("/PhotoData"))
+        except Exception:
+            return False
+
     async def list_files(self, root: str = "/DCIM") -> list[RemoteFile]:
         out: list[RemoteFile] = []
         stack = [root.rstrip("/") or "/"]
