@@ -182,18 +182,21 @@ def to_jpeg(data: bytes, max_side: int = VIEW_MAX) -> bytes | None:
 
 
 def app_icon(size: int) -> bytes:
-    """The home-screen icon: a blue square with a white up/down arrow pair."""
+    """The one Dropboxer icon: a white arrow dropping into a tray, on blue. Drawn big and shrunk for smooth edges."""
     from PIL import Image, ImageDraw
 
-    im = Image.new("RGB", (size, size), "#2b6cb0")
-    d, u = ImageDraw.Draw(im), size / 100
-    for x, up in ((35, True), (65, False)):  # one arrow up, one down
-        tip, base = (18, 82) if up else (82, 18)
-        head = tip + (22 if up else -22)
-        d.line([(x * u, base * u), (x * u, head * u)], fill="white", width=max(2, int(7 * u)))
-        d.polygon([(x * u, tip * u), ((x - 13) * u, head * u), ((x + 13) * u, head * u)], fill="white")
+    big = size * 4
+    im = Image.new("RGB", (big, big), "#2b6cb0")
+    d, u = ImageDraw.Draw(im), big / 100
+    w = int(8 * u)
+    d.line([(50 * u, 20 * u), (50 * u, 50 * u)], fill="white", width=w)
+    d.polygon([(50 * u, 68 * u), (30 * u, 46 * u), (70 * u, 46 * u)], fill="white")
+    tray = [(24 * u, 62 * u), (24 * u, 80 * u), (76 * u, 80 * u), (76 * u, 62 * u)]
+    d.line(tray, fill="white", width=w, joint="curve")
+    for x, y in tray:
+        d.ellipse([x - w / 2, y - w / 2, x + w / 2, y + w / 2], fill="white")
     out = io.BytesIO()
-    im.save(out, "PNG")
+    im.resize((size, size), Image.LANCZOS).save(out, "PNG")
     return out.getvalue()
 
 
@@ -215,7 +218,7 @@ def manifest(token: str) -> bytes:
 
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#2b6cb0">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon/64.png"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#2b6cb0">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Dropboxer">
 <title>Dropboxer</title><style>
 body{{font-family:"Segoe UI",system-ui,sans-serif;margin:0;background:#eef3f8;color:#1f2933}}
@@ -382,7 +385,7 @@ class _Handler(BaseHTTPRequestHandler):
         if action == "sw.js":
             return self._send(HTTPStatus.OK, SERVICE_WORKER.encode(), "text/javascript; charset=utf-8")
         if action == "icon":
-            m = re.fullmatch(r"(180|192|512)\.png", rest)
+            m = re.fullmatch(r"(64|180|192|512)\.png", rest)
             if m is None:
                 return self._send(HTTPStatus.NOT_FOUND, b"not found")
             return self._send(HTTPStatus.OK, app_icon(int(m[1])), "image/png", {"Cache-Control": "max-age=86400"})
