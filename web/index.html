@@ -9,44 +9,47 @@ header h1{margin:0 auto;max-width:760px;font-size:17pt;font-weight:700;color:#1f
 #zig{position:relative;height:18px;background:#a9c3e0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18'%3E%3Cpath d='M0 0h36L18 18z' fill='%23bcd1e8'/%3E%3C/svg%3E") 0 0/36px 18px}
 #zig i{position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:#1f5290 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18'%3E%3Cpath d='M0 0h36L18 18z' fill='%232b6cb0'/%3E%3C/svg%3E") 0 0/36px 18px;transition:width .2s}
 main{margin:0 auto;padding:0 16px 24px;max-width:760px}
-h2{font-size:1.1rem;font-weight:700;margin:22px 0 10px}
-.up{background:#f8fafd;border:1px solid #c9d5e2;border-radius:6px;padding:14px;margin-bottom:14px}
+h2{font-size:1.05rem;font-weight:700;margin:24px 0 10px}
+.up{background:#f8fafd;border:1px solid #c9d5e2;border-radius:10px;padding:16px;margin-bottom:14px;display:flex;flex-direction:column;align-items:flex-start;gap:14px;box-shadow:0 1px 2px rgba(31,41,51,.05)}
+.up>*{margin:0;max-width:100%}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 button,input[type=file]{font-size:1rem;font-family:inherit}
-button{padding:10px 16px;min-height:40px;border-radius:6px;border:1px solid #c9d5e2;background:#f8fafd;color:#1f2933;cursor:pointer;font-weight:600}
-input[type=file]::file-selector-button{margin-right:12px;padding:10px 16px;min-height:40px;border-radius:6px;border:1px solid #c9d5e2;background:#f8fafd;color:#1f2933;cursor:pointer;font-weight:600}
-button:hover{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}
-input[type=file]::file-selector-button:hover{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}
+input[type=file]{color:#66727f;font-size:.95rem;max-width:100%}
+button,input[type=file]::file-selector-button{padding:10px 18px;min-height:44px;border-radius:8px;border:1px solid #c9d5e2;background:#fff;color:#1f2933;cursor:pointer;font-weight:600;font-family:inherit;font-size:1rem}
+input[type=file]::file-selector-button{margin-right:12px}
+button:hover,input[type=file]::file-selector-button:hover{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}
 button.pri{background:#2b6cb0;border-color:#2b6cb0;color:#fff} button.pri:hover{background:#1f5290;color:#fff}
 button.danger{color:#b5352b;border-color:#e3c4c0} button.danger:hover{background:#fdeceb;color:#b5352b}
 button:disabled{opacity:.4}
+small,.muted{color:#66727f;font-size:.9rem} .ok{color:#2e7d46} .bad{color:#b5352b}
 a.btn{display:inline-block;margin-left:8px;padding:6px 14px;border-radius:6px;border:1px solid #2b6cb0;background:#2b6cb0;color:#fff;font-weight:600;text-decoration:none}
 #xlog div,#rgot div{font-size:.85rem;margin:6px 0;color:#66727f} #rgot div.ok{color:#2e7d46} #rgot div.bad{color:#b5352b}
 small,.muted{color:#66727f} .ok{color:#2e7d46} .bad{color:#b5352b}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
 .grid a{display:block;aspect-ratio:1;background:#fff;border:1px solid #c9d5e2;border-radius:6px;overflow:hidden;position:relative;color:#1f2933;text-decoration:none}
 .grid img,.grid video{width:100%;height:100%;object-fit:cover}
-#qr{background:#fff;border:1px solid #c9d5e2;display:inline-block;padding:10px;border-radius:6px;margin:12px 0}
+#qr{background:#fff;border:1px solid #c9d5e2;display:inline-block;padding:10px;border-radius:8px}
 #qr svg{display:block;width:min(240px,70vw);height:auto;aspect-ratio:1}
 #log div,#plog div{font-size:.85rem;margin:4px 0;color:#66727f} #log div.ok,#plog div.ok{color:#2e7d46} #log div.bad,#plog div.bad{color:#b5352b}
-code{word-break:break-all;font-size:.8rem;color:#66727f}
+code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
 </style></head><body>
 <header><h1>Dropboxer</h1></header><div id="zig"><i></i></div><main>
 <div id="pc" hidden>
   <h2>Receive on this PC</h2>
   <div class="up">
-    Photos go straight from your phone to the folder you pick. No server stores them.<br><br>
-    <button id="pick" class="pri">Choose save folder</button> <div id="folder" class="muted" style="margin-top:8px"></div>
+    <span>Photos go straight from your phone to the folder you pick. No server stores them.</span>
+    <div class="row"><button id="pick" class="pri">Choose save folder</button><span id="folder" class="muted"></span></div>
   </div>
   <div class="up" id="step2" hidden>
-    Scan with your phone camera:<br>
-    <div id="qr"></div><br><code id="link"></code><br>
-    <button id="copy" style="margin-top:12px">Copy link</button> <button id="again" hidden>New code</button>
+    <span>Scan with your phone camera:</span>
+    <div id="qr"></div><code id="link"></code>
+    <div class="row"><button id="copy">Copy link</button><button id="again" hidden>New code</button></div>
     <div id="state" class="muted"></div>
   </div>
   <div class="up" id="xsend" hidden>
-    <b>Send to your phone</b><br><br>
-    <input id="xfiles" type="file" multiple><br><br>
-    <button id="xgo" class="pri">Send</button> <button id="xstop" hidden class="danger">Stop</button>
+    <b>Send to your phone</b>
+    <input id="xfiles" type="file" multiple>
+    <div class="row"><button id="xgo" class="pri">Send</button><button id="xstop" hidden class="danger">Stop</button></div>
     <div id="xtotal" class="muted"></div><div id="xlog"></div>
   </div>
   <div id="log"></div>
@@ -56,9 +59,10 @@ code{word-break:break-all;font-size:.8rem;color:#66727f}
   <h2>Send to this PC</h2>
   <div class="up"><b id="pstate">Connecting to the PC…</b></div>
   <div class="up" id="send" hidden>
-    Files: <input id="pfiles" type="file" multiple accept="image/*,video/*"><br><br>
-    <small>Can't pick a long video? Save it to Files first, then Browse.</small><br><br>
-    <button id="pgo" class="pri">Upload</button> <button id="pstop" hidden class="danger">Stop</button>
+    <b>Choose files</b>
+    <input id="pfiles" type="file" multiple accept="image/*,video/*">
+    <small>Can't pick a long video? Save it to Files first, then Browse.</small>
+    <div class="row"><button id="pgo" class="pri">Upload</button><button id="pstop" hidden class="danger">Stop</button></div>
     <div id="ptotal" class="muted"></div><div id="plog"></div>
   </div>
   <div id="rbox" hidden><h2>From this PC</h2><div class="up" id="rgot"></div></div>

@@ -218,22 +218,26 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport"
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#2b6cb0">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Dropboxer">
 <title>Dropboxer</title><style>
-body{{font-family:"Segoe UI",system-ui,sans-serif;margin:0 auto;padding:16px;max-width:760px;background:#eef3f8;color:#1f2933}}
-h2{{font-size:1.1rem;font-weight:700;margin:22px 0 10px}}
-.up{{background:#f8fafd;border:1px solid #c9d5e2;border-radius:6px;padding:14px;margin-bottom:14px;overflow:hidden}}
-.up::before{{content:"";display:block;height:72px;margin:-14px -14px 12px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Crect width='40' height='20' fill='%23a9c3e0'/%3E%3Cpath d='M0 0h40L20 20z' fill='%23bcd1e8'/%3E%3C/svg%3E")}}
-.up:nth-of-type(2n)::before{{background:repeating-linear-gradient(135deg,#8fb0d4 0 10px,#9dbadb 10px 20px)}}
-.up:nth-of-type(3n)::before{{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23d3e1f0'/%3E%3Cpath d='M0 0h20a20 20 0 0 1-20 20zM40 40H20a20 20 0 0 1 20-20z' fill='%23c0d3e8'/%3E%3C/svg%3E")}}
-.up:nth-of-type(4n)::before{{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Crect width='40' height='20' fill='%23dbe8f5'/%3E%3Cpath d='M0 0h40L20 20z' fill='%23e8f1fa'/%3E%3C/svg%3E")}}
+body{{font-family:"Segoe UI",system-ui,sans-serif;margin:0;background:#eef3f8;color:#1f2933}}
+header{{background:#e1e9f2;border-bottom:1px solid #c9d5e2;padding:12px 16px}}
+header h1{{margin:0 auto;max-width:760px;font-size:17pt;font-weight:700;color:#1f5290}}
+#zig{{position:relative;height:18px;background:#a9c3e0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18'%3E%3Cpath d='M0 0h36L18 18z' fill='%23bcd1e8'/%3E%3C/svg%3E") 0 0/36px 18px}}
+#zig i{{position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:#1f5290 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18'%3E%3Cpath d='M0 0h36L18 18z' fill='%232b6cb0'/%3E%3C/svg%3E") 0 0/36px 18px;transition:width .2s}}
+main{{margin:0 auto;padding:0 16px 24px;max-width:760px}}
+
+h2{{font-size:1.05rem;font-weight:700;margin:24px 0 10px}}
+.up{{background:#f8fafd;border:1px solid #c9d5e2;border-radius:10px;padding:16px;margin-bottom:14px;display:flex;flex-direction:column;align-items:flex-start;gap:14px;box-shadow:0 1px 2px rgba(31,41,51,.05)}}
+.up>*{{margin:0;max-width:100%}}
+.row{{display:flex;flex-wrap:wrap;align-items:center;gap:10px}}
 button,input[type=file]{{font-size:1rem;font-family:inherit}}
-button{{padding:10px 16px;min-height:40px;border-radius:6px;border:1px solid #c9d5e2;background:#f8fafd;color:#1f2933;cursor:pointer;font-weight:600}}
-input[type=file]::file-selector-button{{margin-right:12px;padding:10px 16px;min-height:40px;border-radius:6px;border:1px solid #c9d5e2;background:#f8fafd;color:#1f2933;cursor:pointer;font-weight:600}}
-button:hover{{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}}
-input[type=file]::file-selector-button:hover{{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}}
+input[type=file]{{color:#66727f;font-size:.95rem;max-width:100%}}
+button,input[type=file]::file-selector-button{{padding:10px 18px;min-height:44px;border-radius:8px;border:1px solid #c9d5e2;background:#fff;color:#1f2933;cursor:pointer;font-weight:600;font-family:inherit;font-size:1rem}}
+input[type=file]::file-selector-button{{margin-right:12px}}
+button:hover,input[type=file]::file-selector-button:hover{{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}}
 button.pri{{background:#2b6cb0;border-color:#2b6cb0;color:#fff}} button.pri:hover{{background:#1f5290;color:#fff}}
 button.danger{{color:#b5352b;border-color:#e3c4c0}} button.danger:hover{{background:#fdeceb;color:#b5352b}}
 button:disabled{{opacity:.4}}
-small,.muted{{color:#66727f}} .ok{{color:#2e7d46}} .bad{{color:#b5352b}}
+small,.muted{{color:#66727f;font-size:.9rem}} .ok{{color:#2e7d46}} .bad{{color:#b5352b}}
 .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}}
 .grid a{{display:block;aspect-ratio:1;background:#fff;border:1px solid #c9d5e2;border-radius:6px;overflow:hidden;position:relative;color:#1f2933;text-decoration:none}}
 .grid img,.grid video{{width:100%;height:100%;object-fit:cover}}
@@ -242,20 +246,24 @@ small,.muted{{color:#66727f}} .ok{{color:#2e7d46}} .bad{{color:#b5352b}}
 .doc{{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;text-align:center;font-size:.7rem;word-break:break-all;overflow:hidden;color:#66727f}}
 .doc b{{font-size:1.1rem;color:#2b6cb0;margin-bottom:4px}}
 .play{{position:absolute;left:6px;bottom:4px;font-size:.8rem;color:#fff;text-shadow:0 0 3px #000}}
-#bar{{margin:8px 0}} #bar button{{margin-right:6px}}
+#bar{{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}}
 .grid a.on{{border-color:#2b6cb0;box-shadow:inset 0 0 0 2px #2b6cb0}}
 .grid a.on::after{{content:"";position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;box-sizing:border-box;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);background:#2b6cb0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.5 4.5 8.5-9.5'/%3E%3C/svg%3E") center/70% no-repeat}}
 </style></head><body>
+<header><h1>Dropboxer</h1></header><div id="zig"><i></i></div><main>
 <h2>Send to this PC</h2><div class="up">
-Photos: <input id="f" type="file" multiple accept="image/*,video/*"><br><br>
-Documents (PDF, Word, Excel, PowerPoint, text…) and long videos (if the tick will not press: save them to Files first): pick here<br>
-<input id="f2" type="file" multiple> <br><br><button id="upbtn" class="pri" onclick="up()">Upload</button> <button id="stopbtn" onclick="stop()" hidden class="danger">Stop</button>
+<b>Photos</b>
+<input id="f" type="file" multiple accept="image/*,video/*">
+<b>Documents and long videos</b>
+<small>PDF, Word, Excel, PowerPoint, text… If the tick will not press, save the file to Files first.</small>
+<input id="f2" type="file" multiple>
+<div class="row"><button id="upbtn" class="pri" onclick="up()">Upload</button><button id="stopbtn" onclick="stop()" hidden class="danger">Stop</button></div>
 <div id="total"></div><div id="log"></div></div>
 <h2>On this PC ({count} shown)</h2>
 <small>Tap a photo to open it. To keep many at once: Select, tick them, Download ZIP, open the ZIP in the Files app,
 select all, Share, Save.</small>
 <div id="bar"><button id="selbtn" onclick="toggleSel()">Select</button><button id="alln" onclick="selAll()" hidden>All</button><button id="zipbtn" class="pri" onclick="zip()" hidden>Download ZIP</button><button id="delbtn" onclick="del()" hidden class="danger">Delete</button><button id="savebtn" class="pri" onclick="save()" hidden>Save to Photos</button></div><div id="savelog"></div>
-<div class="grid">{items}</div>
+<div class="grid">{items}</div></main>
 <script>
 const T={token},PIECE=8*1024*1024;
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{{}});
@@ -314,13 +322,13 @@ async function up(){{
         if(!r.ok)break;
         fails=0;off=end;sent=off;
         d.textContent=f.name+' … '+Math.floor(100*off/f.size)+'%';
-        tot.textContent='Total: '+Math.floor(100*(done+sent)/Math.max(1,all))+'%';
+        tot.textContent='Total: '+Math.floor(100*(done+sent)/Math.max(1,all))+'%';$('zig').style.setProperty('--p',100*(done+sent)/Math.max(1,all)+'%');
       }}
       if(cancel){{d.textContent=f.name+' stopped (pick it again later to continue)';d.className='bad';break;}}
       const ok=r&&r.ok;if(ok)store(key,null);
       d.textContent=f.name+(ok?' ✓ sent':' ✗ '+(r?await r.text():'no answer'));d.className=ok?'ok':'bad';
     }}catch(e){{d.textContent=f.name+' ✗ '+e;d.className='bad';}}
-    done+=f.size;tot.textContent='Total: '+Math.floor(100*done/Math.max(1,all))+'%';
+    done+=f.size;tot.textContent='Total: '+Math.floor(100*done/Math.max(1,all))+'%';$('zig').style.setProperty('--p',100*done/Math.max(1,all)+'%');
   }}
   $('upbtn').disabled=false;$('stopbtn').hidden=true;
 }}
