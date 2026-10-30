@@ -582,3 +582,68 @@ def test_list_drives_finds_only_removable_drives_with_dcim():
 
     for d in list_drives():  # whatever is plugged in right now
         assert d.root[1:] == ":\\" and os.path.isdir(d.root + "DCIM")
+
+
+class _Items:
+    def __init__(self, items):
+        self.items = items
+        self.Count = len(items)
+
+    def Item(self, i):
+        return self.items[i]
+
+
+class _Node:
+    """A stand-in for a Windows shell item: a folder when `kids` is given, else a file with `data`."""
+
+    def __init__(self, name, kids=None, data=b"", path="", mtime=1_600_000_000):
+        self.Name, self.Path, self.kids, self.data = name, path, kids, data
+        self.IsFolder, self.Size = kids is not None, len(data)
+        self.ModifyDate = type("D", (), {"timestamp": lambda s: mtime})()
+
+    @property
+    def GetFolder(self):
+        return type("F", (), {"Items": lambda s, k=self.kids: _Items(k)})()
+
+    def ExtendedProperty(self, name):
+        return self.Name
+
+
+def _fake_phone(monkeypatch):
+    from phototransfer.sources import mtp
+
+    jpg, mov = os.urandom(300_000), os.urandom(900_000)
+    cam = _Node("Camera", [_Node("a.jpg", data=jpg), _Node("b.mp4", data=mov), _Node(".trashed-x.jpg", data=b"x")])
+    phone = _Node("Pixel", [_Node("Internal storage", [_Node("DCIM", [cam, _Node(".thumbnails", [])]), _Node("Music", [])])],
+                  path="::{x}" + chr(92) * 2 + "?" + chr(92) + "usb#vid_18d1")
+    pc = _Items([_Node("Acer (C:)", [], path="C:\\"), phone])
+
+    class Shell:
+        def NameSpace(self, where):
+            if where == mtp.THIS_PC:
+                return type("N", (), {"Items": lambda s: pc})()
+            def copy_here(s, item, flags):
+                (Path(where) / item.Name).write_bytes(item.data)
+            return type("N", (), {"CopyHere": copy_here})()
+
+    monkeypatch.setattr(mtp, "_shell", lambda: Shell())
+    return jpg, mov
+
+
+def test_phone_in_file_transfer_mode_is_found_and_copied(tmp_path, monkeypatch):
+    from phototransfer.sources.mtp import MtpSource, list_mtp_devices
+
+    jpg, mov = _fake_phone(monkeypatch)
+    devs = run(list_mtp_devices())
+    assert [d.name for d in devs] == ["Pixel"]  # the C: drive is not a phone
+    src, dest = MtpSource(devs[0]), tmp_path / "out"
+    files = run(src.list_files("/DCIM"))
+    assert [f.path for f in files] == ["/DCIM/Camera/a.jpg", "/DCIM/Camera/b.mp4"]  # hidden entries skipped
+    s = run(copy_files(src, files, "/DCIM", dest))
+    assert len(s.copied) == 2 and not s.failed
+    assert (dest / "Camera" / "a.jpg").read_bytes() == jpg and (dest / "Camera" / "b.mp4").read_bytes() == mov
+    with pytest.raises(PermissionError):
+        run(src.write("/DCIM/x", [b"x"]))
+    tmp = src._tmp
+    run(src.close())
+    assert not tmp.exists()  # no staged copies are left behind

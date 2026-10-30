@@ -130,7 +130,8 @@ class App:
     def __init__(self, root: tk.Tk, source_dir: str | None, udid: str | None):
         self.root, self.source_dir, self.udid = root, source_dir, udid
         self.source: Source | None = None
-        self.want: str | None = None  # what the open source is: "iphone" or a memory card's drive letter
+        self.want: str | None = None  # what the open source is: "iphone", a memory card's drive letter, or "mtp:<phone>"
+        self.mtp_device = None
         self.all_files: list[RemoteFile] = []
         self.folder_stash: tuple[list[RemoteFile], set[str]] | None = None  # the list before an Explorer folder filtered it
         self.shown: list[RemoteFile] = []  # after the Show and date filters, newest first
@@ -573,7 +574,7 @@ class App:
         else:
             self.remote_row.pack_forget()
             self.dest_row.pack(fill="x")
-            self.status.config(text="" if self.all_files else T("Unlock your iPhone and tap Trust, or insert a memory card."))
+            self.status.config(text="" if self.all_files else T("Unlock your iPhone and tap Trust, or insert a memory card or plug in an Android phone."))
         self._wings_state()
         self._fill_wings()
         self._fill()
@@ -984,7 +985,7 @@ class App:
         if on_phone and not self.source:
             return
         if on_phone and self.want not in (None, "iphone"):
-            messagebox.showinfo(T("Delete"), T("Memory cards are opened read-only. Delete from the card in Windows Explorer if you want to."))
+            messagebox.showinfo(T("Delete"), T("Memory cards and phones opened this way are read-only. Delete from them in Windows Explorer if you want to."))
             return
         n = len(files)
         ask = T("Delete {n} files from your iPhone? This cannot be undone.", n=n) if on_phone             else T("Move {n} files to the Recycle Bin?", n=n)
@@ -1048,7 +1049,13 @@ class App:
             cards = list_drives()
         except Exception:
             cards = []
-        self.events.put(("devices", n, cards[0].root if cards else None))  # an iPhone wins over a card
+        try:
+            from .sources.mtp import list_mtp_devices
+
+            phones = await list_mtp_devices()
+        except Exception:
+            phones = []
+        self.events.put(("devices", n, cards[0].root if cards else None, phones[0] if phones else None))  # iPhone, then card, then phone
 
     def connect(self) -> None:
         self.auto = False
@@ -1064,6 +1071,10 @@ class App:
             from .sources.local import LocalSource
 
             self.source = LocalSource(self.source_dir)
+        elif self.want and self.want.startswith("mtp:"):  # an Android phone in File transfer mode
+            from .sources.mtp import MtpSource
+
+            self.source = MtpSource(self.mtp_device)
         elif self.want not in (None, "iphone"):  # a memory card or camera: its drive letter
             from .sources.drive import DriveSource
 
@@ -1469,9 +1480,9 @@ class App:
             self._sync_buttons()
         elif kind == "devices":
             self.scanning = False
-            want = "iphone" if ev[1] or self.source_dir else ev[2]  # None, "iphone", or a card's drive letter
+            want = "iphone" if ev[1] or self.source_dir else ev[2] or (ev[3] and "mtp:" + ev[3].path)  # None, "iphone", a card's drive letter, or "mtp:<phone>"
             if want and not self.source and not self.busy:
-                self.want = want
+                self.want, self.mtp_device = want, ev[3]
                 self.connect()
                 self.auto = True
             elif self.source and not self.busy and want != self.want:  # unplugged, or a card gave way to an iPhone (or the reverse)
@@ -1481,7 +1492,7 @@ class App:
                 if self.mode.get() == "receive":
                     self.all_files, self.selected = [], set()
                     self._fill()
-                self.status.config(text=T("Plug in your iPhone with the cable, or insert a memory card."))
+                self.status.config(text=T("Plug in your iPhone with the cable, or insert a memory card or plug in an Android phone."))
                 self._sync_buttons()
         elif kind == "folder":
             _, files, folder, only = ev
@@ -1579,6 +1590,7 @@ class App:
             if self.auto:  # the watcher tries again on its next look; no pop-up for a phone that is still locked
                 self.auto, self.failed = False, False
                 self.status.config(text=T("Unlock your iPhone and tap Trust.") if self.want == "iphone"
+                                   else T("Unlock the phone and choose File transfer in its USB notification.") if self.want.startswith("mtp:")
                                    else T("Could not read the memory card. Take it out and put it back in."))
                 self._sync_buttons()
                 return

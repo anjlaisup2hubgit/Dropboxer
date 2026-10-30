@@ -30,6 +30,14 @@ async def _open_source(args) -> Source:
         from .sources.drive import DriveSource
 
         return DriveSource(args.drive)
+    if getattr(args, "mtp", None) is not None:  # Android phone or camera without a drive letter: read-only
+        from .sources.mtp import MtpSource, list_mtp_devices
+
+        found = [d for d in await list_mtp_devices() if args.mtp.lower() in d.name.lower()]
+        if not found:
+            sys.exit("No phone found" + (f" matching '{args.mtp}'" if args.mtp else "") +
+                     ". Unlock it and choose File transfer in its USB notification (see 'devices').")
+        return MtpSource(found[0])
     from .sources.iphone import IPhoneSource
 
     try:
@@ -46,19 +54,23 @@ async def cmd_devices(args) -> int:
     from .sources.iphone import list_devices
 
     from .sources.drive import list_drives
+    from .sources.mtp import list_mtp_devices
 
     try:
         devs = await list_devices()
     except Exception:  # no Apple Mobile Device Service must not hide a memory card
         devs = []
     drives = list_drives()
+    phones = await list_mtp_devices()
     for d in devs:
         print(f"{d['udid']}  ({d['connection']})")
     for d in drives:
         print(f"{d.root[:2]}  memory card / camera: {d.label or 'no name'}  (use --drive {d.root[:2]})")
-    if not devs and not drives:
+    for d in phones:
+        print(f"{d.name}  phone / camera, no drive letter  (use --mtp \"{d.name}\")")
+    if not devs and not drives and not phones:
         print("No iPhone found over USB. Plug it in, unlock it, and tap 'Trust'.\n"
-              "No memory card found either: insert it, or plug in the camera in file-transfer mode.")
+              "No memory card or Android phone found either: insert the card, or plug in the phone/camera and choose File transfer.")
         return 1
     return 0
 
@@ -198,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--root", default=DEFAULT_ROOT, help=f"Folder on the device (default {DEFAULT_ROOT})")
         sp.add_argument("--source-dir", help="Use a local folder instead of an iPhone (for testing)")
         sp.add_argument("--drive", help="Read from a memory card, camera or USB drive, e.g. E: (see 'devices')")
+        sp.add_argument("--mtp", nargs="?", const="", metavar="NAME", help="Read from an Android phone or camera in File transfer mode (part of its name; none = the first one)")
 
     sub.add_parser("devices", help="List USB-connected iPhones and memory cards").set_defaults(fn=cmd_devices)
     sp = sub.add_parser("list", help="List camera-roll files")
