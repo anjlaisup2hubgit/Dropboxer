@@ -76,7 +76,7 @@ code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
-const $=id=>document.getElementById(id), last=0,prog=p=>{last=Date.now();$('zig').style.setProperty('--p',Math.min(100,p)+'%');},unprog=()=>setTimeout(()=>{if(Date.now()-last>=1000)prog(0);},1200), sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let last=0;const $=id=>document.getElementById(id), prog=p=>{last=Date.now();$('zig').style.setProperty('--p',Math.min(100,p)+'%');},unprog=()=>setTimeout(()=>{if(Date.now()-last>=1000)prog(0);},1200), sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]};
 const PIECE=32*1024, HIGH=4*1024*1024;
 const b64u=u8=>btoa(String.fromCharCode(...u8)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -112,12 +112,12 @@ async function pcMain(){
     await pc.setLocalDescription(await pc.createOffer());await gathered(pc);
     const r=await relay('POST',room,'offer',await enc(key,{sdp:pc.localDescription.sdp,type:'offer'}));
     if(!r.ok){$('state').textContent='Relay problem: '+await r.text();$('state').className='bad';return;}
-    const link=location.origin+location.pathname+'#'+room+'.'+key;
-    $('link').textContent=link;$('copy').onclick=async()=>{
-      try{await navigator.clipboard.writeText(link)}catch(e){const r=document.createRange();r.selectNodeContents($('link'));const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy')}
+    const url=location.origin+location.pathname+'#'+room+'.'+key;
+    $('link').textContent=url;$('copy').onclick=async()=>{
+      try{await navigator.clipboard.writeText(url)}catch(e){const r=document.createRange();r.selectNodeContents($('link'));const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy')}
       $('copy').textContent='Copied!';setTimeout(()=>$('copy').textContent='Copy link',1500);
     };
-    const q=qrcode(0,'M');q.addData(link);q.make();$('qr').innerHTML=q.createSvgTag({cellSize:4,margin:0});
+    const q=qrcode(0,'M');q.addData(url);q.make();$('qr').innerHTML=q.createSvgTag({cellSize:4,margin:0});
     $('state').textContent='Waiting for your phone (code lasts 5 min)…';
     for(let i=0;i<300&&me===session;i++){
       const a=await relay('GET',room,'answer');
