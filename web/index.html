@@ -164,7 +164,9 @@ function pcSink(dir){return async m=>{
   return {write:async buf=>{await w.write(buf);got+=buf.byteLength;
       if(m.size){row.textContent=name+' … '+Math.floor(100*got/m.size)+'%';prog(100*got/m.size);}},
     finish:async()=>{await w.close();const ok=got===m.size;
-      row.textContent=name+(ok?' ✓ received':' ✗ incomplete');row.className=ok?'ok':'bad';if(ok)await tile(fh);unprog();return ok;}};};}
+      row.textContent=name+(ok?' ✓ received':' ✗ incomplete (removed)');row.className=ok?'ok':'bad';
+      if(ok)await tile(fh);else try{await dir.removeEntry(name);}catch(e){}
+      unprog();return ok;}};};}
 
 // ---------------- Phone side ----------------
 async function phoneMain(room,key){
@@ -184,7 +186,7 @@ async function phoneMain(room,key){
     st('Connected ✓');$('send').hidden=false;
     ch.onclose=()=>{st('Disconnected.');};
     sender(ch,link(ch,phoneSink),'p');
-  }catch(e){st('Failed: '+e.message);}
+  }catch(e){st(e.name==='OperationError'?'This link is damaged or incomplete. Scan the QR code again.':'Failed: '+e.message);}
 }
 // The phone can't write to a folder, so incoming files are held in memory and offered as a Save link.
 async function phoneSink(m){
