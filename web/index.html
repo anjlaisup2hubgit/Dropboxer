@@ -55,6 +55,7 @@ code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
     <b>Files to send</b>
     <input id="xfiles" type="file" multiple>
     <div class="row"><button id="xgo" class="pri" disabled>Send</button><button id="xstop" hidden class="danger">Stop</button></div>
+    <small id="xwarn" class="bad" hidden></small>
     <div id="xtotal" class="muted"></div><div id="xlog"></div>
   </div>
   <div id="log"></div>
@@ -79,7 +80,7 @@ code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
 <script>
 let last=0;const $=id=>document.getElementById(id), prog=p=>{last=Date.now();$('zig').style.setProperty('--p',Math.min(100,p)+'%');},unprog=()=>setTimeout(()=>{if(Date.now()-last>=1000)prog(0);},1200), sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]};
-const PIECE=32*1024, HIGH=4*1024*1024;
+const PIECE=32*1024, HIGH=4*1024*1024, PHONE_LIMIT=500*1024*1024;
 const b64u=u8=>btoa(String.fromCharCode(...u8)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const unb64u=s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
 const rnd=n=>b64u(crypto.getRandomValues(new Uint8Array(n)));
@@ -199,7 +200,10 @@ async function phoneSink(m){
 function sender(ch,acks,p){
   let stopped=false,wake=null;const stopP=()=>new Promise(r=>wake=r);
   const inputs=[$(p+'files'),$(p+'files2')].filter(Boolean),pick=()=>inputs.flatMap(i=>[...i.files]);
-  inputs.forEach(i=>i.onchange=()=>{$(p+'go').disabled=!pick().length;});
+  inputs.forEach(i=>i.onchange=()=>{$(p+'go').disabled=!pick().length;
+    // The phone keeps received files in memory, so a big batch can make iOS reload the tab.
+    const w=$(p+'warn'),big=pick().reduce((n,f)=>n+f.size,0);
+    if(w){w.hidden=big<=PHONE_LIMIT;w.textContent=`⚠ ${(big/1048576).toFixed(0)} MB is a lot for a phone to hold in memory. Its browser may reload and lose files. Send in batches under ${PHONE_LIMIT/1048576} MB.`;}});
   $(p+'stop').onclick=()=>{stopped=true;if(wake)wake();};
   $(p+'go').onclick=async()=>{
     const files=pick();if(!files.length)return;
@@ -230,7 +234,7 @@ function sender(ch,acks,p){
       }catch(e){d.textContent=f.name+' ✗ '+e.message;d.className='bad';break;}
       done+=f.size;
     }
-    $(p+'stop').hidden=true;inputs.forEach(i=>i.value='');$(p+'go').disabled=true;
+    $(p+'stop').hidden=true;inputs.forEach(i=>i.value='');$(p+'go').disabled=true;if($(p+'warn'))$(p+'warn').hidden=true;
     $(p+'total').textContent=(stopped?'Stopped. ':'Done. ')+sentOk+' of '+files.length+' sent.';unprog();
   };
 }
