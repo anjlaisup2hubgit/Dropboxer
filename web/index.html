@@ -17,6 +17,8 @@ button:hover{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}
 button.pri{background:#2b6cb0;border-color:#2b6cb0;color:#fff} button.pri:hover{background:#1f5290;color:#fff}
 button.danger{color:#b5352b;border-color:#e3c4c0} button.danger:hover{background:#fdeceb;color:#b5352b}
 button:disabled{opacity:.4}
+a.btn{display:inline-block;margin-left:8px;padding:6px 14px;border-radius:6px;border:1px solid #2b6cb0;background:#2b6cb0;color:#fff;font-weight:600;text-decoration:none}
+#xlog div,#rgot div{font-size:.85rem;margin:6px 0;color:#66727f} #rgot div.ok{color:#2e7d46} #rgot div.bad{color:#b5352b}
 small,.muted{color:#66727f} .ok{color:#2e7d46} .bad{color:#b5352b}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
 .grid a{display:block;aspect-ratio:1;background:#fff;border:1px solid #c9d5e2;border-radius:6px;overflow:hidden;position:relative;color:#1f2933;text-decoration:none}
@@ -39,6 +41,12 @@ code{word-break:break-all;font-size:.8rem;color:#66727f}
     <button id="copy" style="margin-top:12px">Copy link</button> <button id="again" hidden>New code</button>
     <div id="state" class="muted"></div>
   </div>
+  <div class="up" id="xsend" hidden>
+    <b>Send to your phone</b><br><br>
+    <input id="xfiles" type="file" multiple><br><br>
+    <button id="xgo" class="pri">Send</button> <button id="xstop" hidden class="danger">Stop</button>
+    <div id="xtotal" class="muted"></div><div id="xlog"></div>
+  </div>
   <div id="log"></div>
   <h2>Received</h2><div class="grid" id="got"></div>
 </div>
@@ -46,11 +54,12 @@ code{word-break:break-all;font-size:.8rem;color:#66727f}
   <h2>Send to this PC</h2>
   <div class="up"><b id="pstate">Connecting to the PC…</b></div>
   <div class="up" id="send" hidden>
-    Files: <input id="files" type="file" multiple accept="image/*,video/*"><br><br>
+    Files: <input id="pfiles" type="file" multiple accept="image/*,video/*"><br><br>
     <small>Can't pick a long video? Save it to Files first, then Browse.</small><br><br>
-    <button id="go" class="pri">Upload</button> <button id="stop" hidden class="danger">Stop</button>
-    <div id="total" class="muted"></div><div id="plog"></div>
+    <button id="pgo" class="pri">Upload</button> <button id="pstop" hidden class="danger">Stop</button>
+    <div id="ptotal" class="muted"></div><div id="plog"></div>
   </div>
+  <div id="rbox" hidden><h2>From this PC</h2><div class="up" id="rgot"></div></div>
 </div>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
@@ -92,7 +101,10 @@ async function pcMain(){
     const r=await relay('POST',room,'offer',await enc(key,{sdp:pc.localDescription.sdp,type:'offer'}));
     if(!r.ok){$('state').textContent='Relay problem: '+await r.text();$('state').className='bad';return;}
     const link=location.origin+location.pathname+'#'+room+'.'+key;
-    $('link').textContent=link;$('copy').onclick=()=>navigator.clipboard.writeText(link);
+    $('link').textContent=link;$('copy').onclick=async()=>{
+      try{await navigator.clipboard.writeText(link)}catch(e){const r=document.createRange();r.selectNodeContents($('link'));const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy')}
+      $('copy').textContent='Copied!';setTimeout(()=>$('copy').textContent='Copy link',1500);
+    };
     const q=qrcode(0,'M');q.addData(link);q.make();$('qr').innerHTML=q.createSvgTag({cellSize:4,margin:0});
     $('state').textContent='Waiting for your phone (code lasts 5 min)…';
     for(let i=0;i<300&&me===session;i++){
@@ -104,8 +116,8 @@ async function pcMain(){
     if(pc.signalingState!=='stable'){$('state').textContent='Code expired.';$('again').hidden=false;pc.close();return;}
     try{await waitOpen(ch);}catch(e){$('state').textContent='Could not connect. '+e.message;$('state').className='bad';$('again').hidden=false;return;}
     $('state').textContent='Connected. Send from your phone.';$('state').className='ok';
-    receiver(ch,dir);
-    pc.onconnectionstatechange=()=>{if(['disconnected','failed','closed'].includes(pc.connectionState)){$('state').textContent='Phone disconnected.';$('state').className='muted';$('again').hidden=false;}};
+    $('xsend').hidden=false;sender(ch,link(ch,pcSink(dir)),'x');
+    pc.onconnectionstatechange=()=>{if(['disconnected','failed','closed'].includes(pc.connectionState)){$('xsend').hidden=true;$('state').textContent='Phone disconnected.';$('state').className='muted';$('again').hidden=false;}};
   }
 }
 async function uniqueHandle(dir,name){
@@ -119,23 +131,26 @@ async function tile(h){
   a.innerHTML=/\.(mov|mp4|m4v)$/i.test(f.name)?`<video src="${u}#t=0.1" preload="metadata" muted playsinline></video>`
     :/\.(jpe?g|png|gif|webp)$/i.test(f.name)?`<img src="${u}" alt="">`:'';
   if(a.innerHTML)$('got').prepend(a);}
-function receiver(ch,dir){
-  let w=null,fh=null,name='',got=0,size=0,id=null,queue=Promise.resolve(),row=null;
+// One data channel carries files both ways. A sink says where incoming files go; link() returns the ack table for our own sends.
+function link(ch,sink){
+  const acks=new Map();let inc=null,queue=Promise.resolve();
   ch.onmessage=e=>{
     if(typeof e.data==='string'){
       const m=JSON.parse(e.data);
-      if(m.t==='start'){queue=queue.then(async()=>{
-        const [n,h]=await uniqueHandle(dir,m.name);name=n;fh=h;w=await h.createWritable();got=0;size=m.size;id=m.id;
-        row=document.createElement('div');row.textContent=n+' …';$('log').prepend(row);});}
-      else if(m.t==='end'){queue=queue.then(async()=>{
-        await w.close();const ok=got===size;w=null;
-        row.textContent=name+(ok?' ✓ received':' ✗ incomplete');row.className=ok?'ok':'bad';if(ok)await tile(fh);
-        ch.send(JSON.stringify({t:ok?'ok':'err',id:m.id}));});}
-    }else{
-      const buf=e.data;queue=queue.then(async()=>{if(!w)return;await w.write(buf);got+=buf.byteLength;
-        if(row&&size){row.textContent=name+' … '+Math.floor(100*got/size)+'%';prog(100*got/size);}});
-    }};
+      if(m.t==='ok'||m.t==='err'){const f=acks.get(m.id);if(f){acks.delete(m.id);f(m.t==='ok');}}
+      else if(m.t==='start')queue=queue.then(async()=>{inc=await sink(m);});
+      else if(m.t==='end')queue=queue.then(async()=>{const ok=inc?await inc.finish():false;inc=null;ch.send(JSON.stringify({t:ok?'ok':'err',id:m.id}));});
+    }else{const buf=e.data;queue=queue.then(()=>inc&&inc.write(buf));}
+  };
+  return acks;
 }
+function pcSink(dir){return async m=>{
+  const [name,fh]=await uniqueHandle(dir,m.name),w=await fh.createWritable();let got=0;
+  const row=document.createElement('div');row.textContent=name+' …';$('log').prepend(row);
+  return {write:async buf=>{await w.write(buf);got+=buf.byteLength;
+      if(m.size){row.textContent=name+' … '+Math.floor(100*got/m.size)+'%';prog(100*got/m.size);}},
+    finish:async()=>{await w.close();const ok=got===m.size;
+      row.textContent=name+(ok?' ✓ received':' ✗ incomplete');row.className=ok?'ok':'bad';if(ok)await tile(fh);return ok;}};};}
 
 // ---------------- Phone side ----------------
 async function phoneMain(room,key){
@@ -154,20 +169,30 @@ async function phoneMain(room,key){
     if(!(ch&&ch.readyState==='open'))return st('Could not connect. Try the Wi-Fi version.');
     st('Connected ✓');$('send').hidden=false;
     ch.onclose=()=>{st('Disconnected.');};
-    sender(ch);
+    sender(ch,link(ch,phoneSink),'p');
   }catch(e){st('Failed: '+e.message);}
 }
-function sender(ch){
-  let stopped=false;const acks=new Map();
-  ch.onmessage=e=>{const m=JSON.parse(e.data);const f=acks.get(m.id);if(f){acks.delete(m.id);f(m.t==='ok');}};
-  $('stop').onclick=()=>{stopped=true;};
-  $('go').onclick=async()=>{
-    const files=[...$('files').files];if(!files.length)return;
-    stopped=false;$('go').disabled=true;$('stop').hidden=false;
+// The phone can't write to a folder, so incoming files are held in memory and offered as a Save link.
+async function phoneSink(m){
+  const parts=[];let got=0;
+  const row=document.createElement('div');row.textContent=m.name+' …';$('rbox').hidden=false;$('rgot').prepend(row);
+  return {write:buf=>{parts.push(buf);got+=buf.byteLength;
+      if(m.size){row.textContent=m.name+' … '+Math.floor(100*got/m.size)+'%';prog(100*got/m.size);}},
+    finish:()=>{const ok=got===m.size;
+      if(!ok){row.textContent=m.name+' ✗ incomplete';row.className='bad';return false;}
+      const a=document.createElement('a');a.className='btn';a.textContent='Save';a.download=m.name;a.href=URL.createObjectURL(new Blob(parts));
+      row.textContent=m.name+' ✓ ';row.className='ok';row.append(a);return true;}};
+}
+function sender(ch,acks,p){
+  let stopped=false;
+  $(p+'stop').onclick=()=>{stopped=true;};
+  $(p+'go').onclick=async()=>{
+    const files=[...$(p+'files').files];if(!files.length)return;
+    stopped=false;$(p+'go').disabled=true;$(p+'stop').hidden=false;
     const all=files.reduce((n,f)=>n+f.size,0);let done=0;
     for(const f of files){
       if(stopped)break;
-      const d=document.createElement('div');d.textContent=f.name+' …';$('plog').appendChild(d);
+      const d=document.createElement('div');d.textContent=f.name+' …';$(p+'log').appendChild(d);
       const id=rnd(6);const ack=new Promise(r=>acks.set(id,r));
       ch.send(JSON.stringify({t:'start',id,name:f.name,size:f.size,mtime:f.lastModified}));
       let off=0;ch.bufferedAmountLowThreshold=1024*1024;
@@ -181,7 +206,7 @@ function sender(ch){
           }
           off+=blk.byteLength;
           d.textContent=f.name+' … '+Math.floor(100*off/Math.max(1,f.size))+'%';
-          $('total').textContent='Total: '+Math.floor(100*(done+off)/Math.max(1,all))+'%';prog(100*(done+off)/Math.max(1,all));
+          $(p+'total').textContent='Total: '+Math.floor(100*(done+off)/Math.max(1,all))+'%';prog(100*(done+off)/Math.max(1,all));
         }
         if(stopped){ch.send(JSON.stringify({t:'end',id}));d.textContent=f.name+' stopped';d.className='bad';break;}
         ch.send(JSON.stringify({t:'end',id}));
@@ -189,7 +214,7 @@ function sender(ch){
       }catch(e){d.textContent=f.name+' ✗ '+e.message;d.className='bad';break;}
       done+=f.size;
     }
-    $('go').disabled=false;$('stop').hidden=true;
+    $(p+'go').disabled=false;$(p+'stop').hidden=true;
   };
 }
 
