@@ -1634,9 +1634,17 @@ def run(source_dir: str | None = None, udid: str | None = None) -> int:
             ctypes.windll.user32.SetProcessDPIAware()
     except Exception:
         pass
+    try:  # own taskbar identity, so the window shows its icon rather than python's
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Dropboxer")
+    except Exception:
+        pass
     root = tk.Tk()
     try:
-        dpi = root.winfo_fpixels("1i")
+        root.iconbitmap(default=str(Path(__file__).with_name("dropboxer.ico")))
+    except tk.TclError:
+        pass
+    try:
+        dpi =root.winfo_fpixels("1i")
         root.tk.call("tk", "scaling", dpi / 72.0)
         _apply_scale(dpi / 96.0)
     except tk.TclError:
