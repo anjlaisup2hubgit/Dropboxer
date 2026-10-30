@@ -207,7 +207,7 @@ def app_icon(size: int, rounded: bool = False) -> bytes:
 # gallery and the token never sit in a cache. (iOS only runs service workers on HTTPS pages.)
 SERVICE_WORKER = "self.addEventListener('install',()=>self.skipWaiting());\n" \
                  "self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));\n" \
-                 "self.addEventListener('fetch',e=>e.respondWith(fetch(e.request)));\n"
+                 "self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request));});\n"
 
 
 def manifest(token: str) -> bytes:
