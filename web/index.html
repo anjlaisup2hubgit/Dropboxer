@@ -39,19 +39,21 @@ code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
 <div id="pc" hidden>
   <h2>Receive on this PC</h2>
   <div class="up">
-    <span>Photos go straight from your phone to the folder you pick. No server stores them.</span>
+    <b>1. Choose where files are saved</b>
+    <small>Files go straight from your phone to this folder. No server stores them.</small>
     <div class="row"><button id="pick" class="pri">Choose save folder</button><span id="folder" class="muted"></span></div>
   </div>
   <div class="up" id="step2" hidden>
-    <span>Scan with your phone camera:</span>
+    <b>2. Scan with your phone camera</b>
     <div id="qr"></div><code id="link"></code>
     <div class="row"><button id="copy">Copy link</button><button id="again" hidden>New code</button></div>
     <div id="state" class="muted"></div>
   </div>
+  <h2 id="xhead" hidden>Send to your phone</h2>
   <div class="up" id="xsend" hidden>
-    <b>Send to your phone</b>
+    <b>Files to send</b>
     <input id="xfiles" type="file" multiple>
-    <div class="row"><button id="xgo" class="pri">Send</button><button id="xstop" hidden class="danger">Stop</button></div>
+    <div class="row"><button id="xgo" class="pri" disabled>Send</button><button id="xstop" hidden class="danger">Stop</button></div>
     <div id="xtotal" class="muted"></div><div id="xlog"></div>
   </div>
   <div id="log"></div>
@@ -61,10 +63,12 @@ code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
   <h2>Send to this PC</h2>
   <div class="up"><b id="pstate">Connecting to the PC…</b></div>
   <div class="up" id="send" hidden>
-    <b>Choose files</b>
+    <b>Photos</b>
     <input id="pfiles" type="file" multiple accept="image/*,video/*">
-    <small>Can't pick a long video? Save it to Files first, then Browse.</small>
-    <div class="row"><button id="pgo" class="pri">Upload</button><button id="pstop" hidden class="danger">Stop</button></div>
+    <b>Documents and long videos</b>
+    <small>PDF, Word, Excel, PowerPoint, text… If the tick will not press, save the file to Files first.</small>
+    <input id="pfiles2" type="file" multiple>
+    <div class="row"><button id="pgo" class="pri" disabled>Upload</button><button id="pstop" hidden class="danger">Stop</button></div>
     <div id="ptotal" class="muted"></div><div id="plog"></div>
   </div>
   <div id="rbox" hidden><h2>From this PC</h2><div class="up" id="rgot"></div></div>
@@ -72,7 +76,7 @@ code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
-const $=id=>document.getElementById(id), prog=p=>$('zig').style.setProperty('--p',Math.min(100,p)+'%'), sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const $=id=>document.getElementById(id), last=0,prog=p=>{last=Date.now();$('zig').style.setProperty('--p',Math.min(100,p)+'%');},unprog=()=>setTimeout(()=>{if(Date.now()-last>=1000)prog(0);},1200), sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]};
 const PIECE=32*1024, HIGH=4*1024*1024;
 const b64u=u8=>btoa(String.fromCharCode(...u8)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -124,8 +128,8 @@ async function pcMain(){
     if(pc.signalingState!=='stable'){$('state').textContent='Code expired.';$('again').hidden=false;pc.close();return;}
     try{await waitOpen(ch);}catch(e){$('state').textContent='Could not connect. '+e.message;$('state').className='bad';$('again').hidden=false;return;}
     $('state').textContent='Connected. Send from your phone.';$('state').className='ok';
-    $('xsend').hidden=false;sender(ch,link(ch,pcSink(dir)),'x');
-    pc.onconnectionstatechange=()=>{if(['disconnected','failed','closed'].includes(pc.connectionState)){$('xsend').hidden=true;$('state').textContent='Phone disconnected.';$('state').className='muted';$('again').hidden=false;}};
+    $('xsend').hidden=$('xhead').hidden=false;sender(ch,link(ch,pcSink(dir)),'x');
+    pc.onconnectionstatechange=()=>{if(['disconnected','failed','closed'].includes(pc.connectionState)){$('xsend').hidden=$('xhead').hidden=true;$('state').textContent='Phone disconnected.';$('state').className='muted';$('again').hidden=false;}};
   }
 }
 async function uniqueHandle(dir,name){
@@ -158,7 +162,7 @@ function pcSink(dir){return async m=>{
   return {write:async buf=>{await w.write(buf);got+=buf.byteLength;
       if(m.size){row.textContent=name+' … '+Math.floor(100*got/m.size)+'%';prog(100*got/m.size);}},
     finish:async()=>{await w.close();const ok=got===m.size;
-      row.textContent=name+(ok?' ✓ received':' ✗ incomplete');row.className=ok?'ok':'bad';if(ok)await tile(fh);return ok;}};};}
+      row.textContent=name+(ok?' ✓ received':' ✗ incomplete');row.className=ok?'ok':'bad';if(ok)await tile(fh);unprog();return ok;}};};}
 
 // ---------------- Phone side ----------------
 async function phoneMain(room,key){
@@ -187,17 +191,19 @@ async function phoneSink(m){
   return {write:buf=>{parts.push(buf);got+=buf.byteLength;
       if(m.size){row.textContent=m.name+' … '+Math.floor(100*got/m.size)+'%';prog(100*got/m.size);}},
     finish:()=>{const ok=got===m.size;
-      if(!ok){row.textContent=m.name+' ✗ incomplete';row.className='bad';return false;}
+      if(!ok){row.textContent=m.name+' ✗ incomplete';row.className='bad';unprog();return false;}
       const a=document.createElement('a');a.className='btn';a.textContent='Save';a.download=m.name;a.href=URL.createObjectURL(new Blob(parts));
-      row.textContent=m.name+' ✓ ';row.className='ok';row.append(a);return true;}};
+      row.textContent=m.name+' ✓ ';row.className='ok';row.append(a);unprog();return true;}};
 }
 function sender(ch,acks,p){
   let stopped=false;
+  const inputs=[$(p+'files'),$(p+'files2')].filter(Boolean),pick=()=>inputs.flatMap(i=>[...i.files]);
+  inputs.forEach(i=>i.onchange=()=>{$(p+'go').disabled=!pick().length;});
   $(p+'stop').onclick=()=>{stopped=true;};
   $(p+'go').onclick=async()=>{
-    const files=[...$(p+'files').files];if(!files.length)return;
-    stopped=false;$(p+'go').disabled=true;$(p+'stop').hidden=false;
-    const all=files.reduce((n,f)=>n+f.size,0);let done=0;
+    const files=pick();if(!files.length)return;
+    stopped=false;$(p+'go').disabled=true;$(p+'stop').hidden=false;$(p+'log').textContent='';prog(0);
+    const all=files.reduce((n,f)=>n+f.size,0);let done=0,sentOk=0;
     for(const f of files){
       if(stopped)break;
       const d=document.createElement('div');d.textContent=f.name+' …';$(p+'log').appendChild(d);
@@ -218,11 +224,12 @@ function sender(ch,acks,p){
         }
         if(stopped){ch.send(JSON.stringify({t:'end',id}));d.textContent=f.name+' stopped';d.className='bad';break;}
         ch.send(JSON.stringify({t:'end',id}));
-        const ok=await ack;d.textContent=f.name+(ok?' ✓ sent':' ✗ failed');d.className=ok?'ok':'bad';
+        const ok=await ack;d.textContent=f.name+(ok?' ✓ sent':' ✗ failed');d.className=ok?'ok':'bad';if(ok)sentOk++;
       }catch(e){d.textContent=f.name+' ✗ '+e.message;d.className='bad';break;}
       done+=f.size;
     }
-    $(p+'go').disabled=false;$(p+'stop').hidden=true;
+    $(p+'stop').hidden=true;inputs.forEach(i=>i.value='');$(p+'go').disabled=true;
+    $(p+'total').textContent=(stopped?'Stopped. ':'Done. ')+sentOk+' of '+files.length+' sent.';unprog();
   };
 }
 

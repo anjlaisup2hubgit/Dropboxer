@@ -260,7 +260,7 @@ small,.muted{{color:#66727f;font-size:.9rem}} .ok{{color:#2e7d46}} .bad{{color:#
 <b>Documents and long videos</b>
 <small>PDF, Word, Excel, PowerPoint, text… If the tick will not press, save the file to Files first.</small>
 <input id="f2" type="file" multiple>
-<div class="row"><button id="upbtn" class="pri" onclick="up()">Upload</button><button id="stopbtn" onclick="stop()" hidden class="danger">Stop</button></div>
+<div class="row"><button id="upbtn" class="pri" onclick="up()" disabled>Upload</button><button id="stopbtn" onclick="stop()" hidden class="danger">Stop</button></div>
 <div id="total"></div><div id="log"></div></div>
 <h2>On this PC ({count} shown)</h2>
 <small>Tap a photo to open it. To keep many at once: Select, tick them, Download ZIP, open the ZIP in the Files app,
@@ -296,15 +296,19 @@ async function del(){{const n=chosen.size;
 function zip(){{const f=document.createElement('form');f.method='POST';f.action='/'+T+'/zip';
   chosen.forEach(r=>{{const i=document.createElement('input');i.type='hidden';i.name='f';i.value=r;f.appendChild(i);}});
   document.body.appendChild(f);f.submit();f.remove();}}
-let cancel=false,ctl=null;
+let cancel=false,ctl=null,last=0;
+const prog=p=>{{last=Date.now();$('zig').style.setProperty('--p',Math.min(100,p)+'%');}};
+const unprog=()=>setTimeout(()=>{{if(Date.now()-last>=1000)prog(0);}},1200);
+const pickAll=()=>[...$('f').files,...$('f2').files];
+['f','f2'].forEach(i=>$(i).onchange=()=>{{$('upbtn').disabled=!pickAll().length;}});
 const sleep=ms=>new Promise(s=>setTimeout(s,ms));
 function store(k,v){{try{{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}}catch(e){{}}}}
 function load(k){{try{{return localStorage.getItem(k);}}catch(e){{return null;}}}}
 function stop(){{cancel=true;if(ctl)ctl.abort();}}
 async function up(){{
-  const log=$('log'),files=[...$('f').files,...$('f2').files];
+  const log=$('log'),files=pickAll();
   if(!files.length)return;
-  cancel=false;$('upbtn').disabled=true;$('stopbtn').hidden=false;
+  cancel=false;$('upbtn').disabled=true;$('stopbtn').hidden=false;log.textContent='';prog(0);let sentOk=0;
   const all=files.reduce((n,f)=>n+f.size,0);let done=0;
   const tot=$('total');
   for(const f of files){{
@@ -325,15 +329,16 @@ async function up(){{
         if(!r.ok)break;
         fails=0;off=end;sent=off;
         d.textContent=f.name+' … '+Math.floor(100*off/f.size)+'%';
-        tot.textContent='Total: '+Math.floor(100*(done+sent)/Math.max(1,all))+'%';$('zig').style.setProperty('--p',100*(done+sent)/Math.max(1,all)+'%');
+        tot.textContent='Total: '+Math.floor(100*(done+sent)/Math.max(1,all))+'%';prog(100*(done+sent)/Math.max(1,all));
       }}
       if(cancel){{d.textContent=f.name+' stopped (pick it again later to continue)';d.className='bad';break;}}
-      const ok=r&&r.ok;if(ok)store(key,null);
+      const ok=r&&r.ok;if(ok){{store(key,null);sentOk++;}}
       d.textContent=f.name+(ok?' ✓ sent':' ✗ '+(r?await r.text():'no answer'));d.className=ok?'ok':'bad';
     }}catch(e){{d.textContent=f.name+' ✗ '+e;d.className='bad';}}
-    done+=f.size;tot.textContent='Total: '+Math.floor(100*done/Math.max(1,all))+'%';$('zig').style.setProperty('--p',100*done/Math.max(1,all)+'%');
+    done+=f.size;tot.textContent='Total: '+Math.floor(100*done/Math.max(1,all))+'%';prog(100*done/Math.max(1,all));
   }}
-  $('upbtn').disabled=false;$('stopbtn').hidden=true;
+  $('stopbtn').hidden=true;$('f').value=$('f2').value='';$('upbtn').disabled=true;
+  tot.textContent=(cancel?'Stopped. ':'Done. ')+sentOk+' of '+files.length+' sent.';unprog();
 }}
 </script></body></html>"""
 
