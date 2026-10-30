@@ -252,17 +252,17 @@ small,.muted{{color:#66727f;font-size:.9rem}} .ok{{color:#2e7d46}} .bad{{color:#
 .doc{{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;text-align:center;font-size:.7rem;word-break:break-all;overflow:hidden;color:#66727f}}
 .doc b{{font-size:1.1rem;color:#2b6cb0;margin-bottom:4px}}
 .play{{position:absolute;left:6px;bottom:4px;font-size:.8rem;color:#fff;text-shadow:0 0 3px #000}}
+.names{{display:flex;flex-direction:column;gap:6px;width:100%}}.names input{{font:inherit;font-size:1rem;padding:8px 10px;border:1px solid #c9d5e2;border-radius:8px;width:100%;box-sizing:border-box;background:#fff;color:#1f2933}}
 #bar{{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}}
 .grid a.on{{border-color:#2b6cb0;box-shadow:inset 0 0 0 2px #2b6cb0}}
 .grid a.on::after{{content:"";position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;box-sizing:border-box;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);background:#2b6cb0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.5 4.5 8.5-9.5'/%3E%3C/svg%3E") center/70% no-repeat}}
 </style></head><body>
 <header><h1>Dropboxer</h1></header><div id="zig"><i></i></div><main>
 <h2>Send to this PC</h2><div class="up">
-<b>Photos</b>
-<input id="f" type="file" multiple accept="image/*,video/*">
-<b>Documents and long videos</b>
-<small>PDF, Word, Excel, PowerPoint, text… If the tick will not press, save the file to Files first.</small>
-<input id="f2" type="file" multiple>
+<b>Photos, videos and documents</b>
+<small>If the tick will not press, save the file to Files first.</small>
+<input id="f" type="file" multiple>
+<div id="names" class="names"></div>
 <div class="row"><button id="upbtn" class="pri" onclick="up()" disabled>Upload</button><button id="stopbtn" onclick="stop()" hidden class="danger">Stop</button></div>
 <div id="total"></div><div id="log"></div></div>
 <h2>On this PC ({count} shown)</h2>
@@ -302,25 +302,28 @@ function zip(){{const f=document.createElement('form');f.method='POST';f.action=
 let cancel=false,ctl=null,last=0;
 const prog=p=>{{last=Date.now();$('zig').style.setProperty('--p',Math.min(100,p)+'%');}};
 const unprog=()=>setTimeout(()=>{{if(Date.now()-last>=1000)prog(0);}},1200);
-const pickAll=()=>[...$('f').files,...$('f2').files];
-['f','f2'].forEach(i=>$(i).onchange=()=>{{$('upbtn').disabled=!pickAll().length;}});
+let picked=[];  // {{f, name}}: each file can be renamed before it is sent
+$('f').onchange=()=>{{picked=[...$('f').files].map(f=>({{f,name:f.name}}));$('names').textContent='';
+  picked.forEach(e=>{{const t=document.createElement('input');t.type='text';t.value=e.name;t.setAttribute('aria-label','File name');
+    t.oninput=()=>{{e.name=t.value.trim()||e.f.name;}};$('names').appendChild(t);}});
+  $('upbtn').disabled=!picked.length;}};
 const sleep=ms=>new Promise(s=>setTimeout(s,ms));
 function store(k,v){{try{{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}}catch(e){{}}}}
 function load(k){{try{{return localStorage.getItem(k);}}catch(e){{return null;}}}}
 function stop(){{cancel=true;if(ctl)ctl.abort();}}
 async function up(){{
-  const log=$('log'),files=pickAll();
+  const log=$('log'),files=picked.slice();
   if(!files.length)return;
   cancel=false;$('upbtn').disabled=true;$('stopbtn').hidden=false;log.textContent='';prog(0);let sentOk=0;
-  const all=files.reduce((n,f)=>n+f.size,0);let done=0;
+  const all=files.reduce((n,e)=>n+e.f.size,0);let done=0;
   const tot=$('total');tot.textContent='Starting '+files.length+' file(s)…';
-  for(const f of files){{
-    const d=document.createElement('div');d.textContent=f.name+' … ('+Math.round(f.size/1048576)+' MB)';log.appendChild(d);
-    if(!f.size){{d.textContent=f.name+' ✗ the phone gave an empty file (0 bytes). If it is in iCloud, download it first, or save it to On My iPhone and pick it again.';d.className='bad';continue;}}
+  for(const {{f,name}} of files){{
+    const d=document.createElement('div');d.textContent=name+' … ('+Math.round(f.size/1048576)+' MB)';log.appendChild(d);
+    if(!f.size){{d.textContent=name+' ✗ the phone gave an empty file (0 bytes). If it is in iCloud, download it first, or save it to On My iPhone and pick it again.';d.className='bad';continue;}}
     const key='up|'+f.name+'|'+f.size+'|'+f.lastModified;  // same file picked again after a reload resumes
     let id=load(key);
     if(!id){{id=[...crypto.getRandomValues(new Uint8Array(12))].map(b=>b.toString(16).padStart(2,'0')).join('');store(key,id);}}
-    const base='/'+T+'/put?name='+encodeURIComponent(f.name)+'&id='+id+'&total='+f.size+'&offset=';
+    const base='/'+T+'/put?name='+encodeURIComponent(name)+'&id='+id+'&total='+f.size+'&offset=';
     let off=0,fails=0,r=null,sent=0;
     try{{
       while(off<f.size&&!cancel){{
@@ -328,20 +331,20 @@ async function up(){{
         ctl=new AbortController();
         try{{
           r=await fetch(base+off,{{method:'PUT',body:f.slice(off,end),signal:ctl.signal,headers:{{'X-Last-Modified':String(f.lastModified)}}}});
-        }}catch(e){{if(cancel)break;if(++fails>20)throw e;d.textContent=f.name+' … retrying';await sleep(2000);continue;}}
+        }}catch(e){{if(cancel)break;if(++fails>20)throw e;d.textContent=name+' … retrying';await sleep(2000);continue;}}
         if(r.status==409){{off=parseInt(await r.text());sent=off;continue;}}  // the PC says where it really is
         if(!r.ok)break;
         fails=0;off=end;sent=off;
-        d.textContent=f.name+' … '+Math.floor(100*off/f.size)+'%';
+        d.textContent=name+' … '+Math.floor(100*off/f.size)+'%';
         tot.textContent='Total: '+Math.floor(100*(done+sent)/Math.max(1,all))+'%';prog(100*(done+sent)/Math.max(1,all));
       }}
-      if(cancel){{d.textContent=f.name+' stopped (pick it again later to continue)';d.className='bad';break;}}
+      if(cancel){{d.textContent=name+' stopped (pick it again later to continue)';d.className='bad';break;}}
       const ok=r&&r.ok;if(ok){{store(key,null);sentOk++;}}
-      d.textContent=f.name+(ok?' ✓ sent':' ✗ '+(r?await r.text():'no answer'));d.className=ok?'ok':'bad';
-    }}catch(e){{d.textContent=f.name+' ✗ '+e;d.className='bad';}}
+      d.textContent=name+(ok?' ✓ sent':' ✗ '+(r?await r.text():'no answer'));d.className=ok?'ok':'bad';
+    }}catch(e){{d.textContent=name+' ✗ '+e;d.className='bad';}}
     done+=f.size;tot.textContent='Total: '+Math.floor(100*done/Math.max(1,all))+'%';prog(100*done/Math.max(1,all));
   }}
-  $('stopbtn').hidden=true;$('f').value=$('f2').value='';$('upbtn').disabled=true;
+  $('stopbtn').hidden=true;$('f').value='';picked=[];$('names').textContent='';$('upbtn').disabled=true;
   tot.textContent=(cancel?'Stopped. ':'Done. ')+sentOk+' of '+files.length+' sent.';unprog();
 }}
 </script></body></html>"""

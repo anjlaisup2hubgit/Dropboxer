@@ -34,7 +34,7 @@ small,.muted{color:#66727f} .ok{color:#2e7d46} .bad{color:#b5352b}
 #qr{background:#fff;border:1px solid #c9d5e2;display:inline-block;padding:10px;border-radius:8px}
 #qr svg{display:block;width:min(240px,70vw);height:auto;aspect-ratio:1}
 #log div,#plog div{font-size:.85rem;margin:4px 0;color:#66727f} #log div.ok,#plog div.ok{color:#2e7d46} #log div.bad,#plog div.bad{color:#b5352b}
-code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
+.names{display:flex;flex-direction:column;gap:6px;width:100%}.names input{font:inherit;font-size:1rem;padding:8px 10px;border:1px solid #c9d5e2;border-radius:8px;width:100%;box-sizing:border-box;background:#fff;color:#1f2933}
 </style></head><body>
 <header><h1>Dropboxer</h1></header><div id="zig"><i></i></div><main>
 <div id="pc" hidden>
@@ -46,14 +46,15 @@ code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
   </div>
   <div class="up" id="step2" hidden>
     <b>2. Scan with your phone camera</b>
-    <div id="qr"></div><code id="link"></code>
-    <div class="row"><button id="copy">Copy link</button><button id="again" hidden>New code</button></div>
+    <div id="qr"></div>
+    <div class="row"><button id="again" hidden>New code</button></div>
     <div id="state" class="muted"></div>
   </div>
   <h2 id="xhead" hidden>Send to your phone</h2>
   <div class="up" id="xsend" hidden>
     <b>Files to send</b>
     <input id="xfiles" type="file" multiple>
+    <div id="xlist" class="names"></div>
     <div class="row"><button id="xgo" class="pri" disabled>Send</button><button id="xstop" hidden class="danger">Stop</button></div>
     <small id="xwarn" class="bad" hidden></small>
     <div id="xtotal" class="muted"></div><div id="xlog"></div>
@@ -65,11 +66,10 @@ code{word-break:break-all;font-size:.8rem;color:#66727f;display:block}
   <h2>Send to this PC</h2>
   <div class="up"><b id="pstate">Connecting to the PC…</b></div>
   <div class="up" id="send" hidden>
-    <b>Photos</b>
-    <input id="pfiles" type="file" multiple accept="image/*,video/*">
-    <b>Documents and long videos</b>
-    <small>PDF, Word, Excel, PowerPoint, text… If the tick will not press, save the file to Files first.</small>
-    <input id="pfiles2" type="file" multiple>
+    <b>Photos, videos and documents</b>
+    <small>If the tick will not press, save the file to Files first.</small>
+    <input id="pfiles" type="file" multiple>
+    <div id="plist" class="names"></div>
     <div class="row"><button id="pgo" class="pri" disabled>Upload</button><button id="pstop" hidden class="danger">Stop</button></div>
     <div id="ptotal" class="muted"></div><div id="plog"></div>
   </div>
@@ -115,10 +115,6 @@ async function pcMain(){
     const r=await relay('POST',room,'offer',await enc(key,{sdp:pc.localDescription.sdp,type:'offer'}));
     if(!r.ok){$('state').textContent='Relay problem: '+await r.text();$('state').className='bad';return;}
     const url=location.origin+location.pathname+'#'+room+'.'+key;
-    $('link').textContent=url;$('copy').onclick=async()=>{
-      try{await navigator.clipboard.writeText(url)}catch(e){const r=document.createRange();r.selectNodeContents($('link'));const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy')}
-      $('copy').textContent='Copied!';setTimeout(()=>$('copy').textContent='Copy link',1500);
-    };
     const q=qrcode(0,'M');q.addData(url);q.make();$('qr').innerHTML=q.createSvgTag({cellSize:4,margin:0});
     $('state').textContent='Waiting for your phone (code lasts 5 min)…';
     for(let i=0;i<300&&me===session;i++){
@@ -201,21 +197,24 @@ async function phoneSink(m){
 }
 function sender(ch,acks,p){
   let stopped=false,wake=null;const stopP=()=>new Promise(r=>wake=r);
-  const inputs=[$(p+'files'),$(p+'files2')].filter(Boolean),pick=()=>inputs.flatMap(i=>[...i.files]);
-  inputs.forEach(i=>i.onchange=()=>{$(p+'go').disabled=!pick().length;
+  const input=$(p+'files'),list=$(p+'list');let picked=[];  // picked: {f, name} so each file can be renamed before sending
+  input.onchange=()=>{picked=[...input.files].map(f=>({f,name:f.name}));list.textContent='';
+    picked.forEach(e=>{const t=document.createElement('input');t.type='text';t.value=e.name;t.setAttribute('aria-label','File name');
+      t.oninput=()=>{e.name=t.value.trim()||e.f.name;};list.appendChild(t);});
+    $(p+'go').disabled=!picked.length;
     // The phone keeps received files in memory, so a big batch can make iOS reload the tab.
-    const w=$(p+'warn'),big=pick().reduce((n,f)=>n+f.size,0);
-    if(w){w.hidden=big<=PHONE_LIMIT;w.textContent=`⚠ ${(big/1048576).toFixed(0)} MB is a lot for a phone to hold in memory. Its browser may reload and lose files. Send in batches under ${PHONE_LIMIT/1048576} MB.`;}});
+    const w=$(p+'warn'),big=picked.reduce((n,e)=>n+e.f.size,0);
+    if(w){w.hidden=big<=PHONE_LIMIT;w.textContent=`⚠ ${(big/1048576).toFixed(0)} MB is a lot for a phone to hold in memory. Its browser may reload and lose files. Send in batches under ${PHONE_LIMIT/1048576} MB.`;}};
   $(p+'stop').onclick=()=>{stopped=true;if(wake)wake();};
   $(p+'go').onclick=async()=>{
-    const files=pick();if(!files.length)return;
+    const files=picked.slice();if(!files.length)return;
     stopped=false;const sp=stopP();$(p+'go').disabled=true;$(p+'stop').hidden=false;$(p+'log').textContent='';prog(0);
-    const all=files.reduce((n,f)=>n+f.size,0);let done=0,sentOk=0;
-    for(const f of files){
+    const all=files.reduce((n,e)=>n+e.f.size,0);let done=0,sentOk=0;
+    for(const {f,name} of files){
       if(stopped)break;
-      const d=document.createElement('div');d.textContent=f.name+' …';$(p+'log').appendChild(d);
+      const d=document.createElement('div');d.textContent=name+' …';$(p+'log').appendChild(d);
       const id=rnd(6);const ack=new Promise(r=>acks.set(id,r));
-      ch.send(JSON.stringify({t:'start',id,name:f.name,size:f.size,mtime:f.lastModified}));
+      ch.send(JSON.stringify({t:'start',id,name:name,size:f.size,mtime:f.lastModified}));
       let off=0;ch.bufferedAmountLowThreshold=1024*1024;
       try{
         while(off<f.size&&!stopped){
@@ -227,16 +226,16 @@ function sender(ch,acks,p){
             ch.send(blk.slice(p,p+PIECE));
           }
           off+=blk.byteLength;
-          d.textContent=f.name+' … '+Math.floor(100*off/Math.max(1,f.size))+'%';
+          d.textContent=name+' … '+Math.floor(100*off/Math.max(1,f.size))+'%';
           $(p+'total').textContent='Total: '+Math.floor(100*(done+off)/Math.max(1,all))+'%';prog(100*(done+off)/Math.max(1,all));
         }
-        if(stopped){try{ch.send(JSON.stringify({t:'end',id}));}catch(e){}d.textContent=f.name+' stopped';d.className='bad';break;}
+        if(stopped){try{ch.send(JSON.stringify({t:'end',id}));}catch(e){}d.textContent=name+' stopped';d.className='bad';break;}
         ch.send(JSON.stringify({t:'end',id}));
-        const ok=await Promise.race([ack,sp.then(()=>false)]);d.textContent=f.name+(ok?' ✓ sent':' ✗ failed');d.className=ok?'ok':'bad';if(ok)sentOk++;
-      }catch(e){d.textContent=f.name+' ✗ '+e.message;d.className='bad';break;}
+        const ok=await Promise.race([ack,sp.then(()=>false)]);d.textContent=name+(ok?' ✓ sent':' ✗ failed');d.className=ok?'ok':'bad';if(ok)sentOk++;
+      }catch(e){d.textContent=name+' ✗ '+e.message;d.className='bad';break;}
       done+=f.size;
     }
-    $(p+'stop').hidden=true;inputs.forEach(i=>i.value='');$(p+'go').disabled=true;if($(p+'warn'))$(p+'warn').hidden=true;
+    $(p+'stop').hidden=true;input.value='';picked=[];list.textContent='';$(p+'go').disabled=true;if($(p+'warn'))$(p+'warn').hidden=true;
     $(p+'total').textContent=(stopped?'Stopped. ':'Done. ')+sentOk+' of '+files.length+' sent.';unprog();
   };
 }
