@@ -313,9 +313,10 @@ async function up(){{
   if(!files.length)return;
   cancel=false;$('upbtn').disabled=true;$('stopbtn').hidden=false;log.textContent='';prog(0);let sentOk=0;
   const all=files.reduce((n,f)=>n+f.size,0);let done=0;
-  const tot=$('total');
+  const tot=$('total');tot.textContent='Starting '+files.length+' file(s)…';
   for(const f of files){{
-    const d=document.createElement('div');d.textContent=f.name+' …';log.appendChild(d);
+    const d=document.createElement('div');d.textContent=f.name+' … ('+Math.round(f.size/1048576)+' MB)';log.appendChild(d);
+    if(!f.size){{d.textContent=f.name+' ✗ the phone gave an empty file (0 bytes). If it is in iCloud, download it first, or save it to On My iPhone and pick it again.';d.className='bad';continue;}}
     const key='up|'+f.name+'|'+f.size+'|'+f.lastModified;  // same file picked again after a reload resumes
     let id=load(key);
     if(!id){{id=[...crypto.getRandomValues(new Uint8Array(12))].map(b=>b.toString(16).padStart(2,'0')).join('');store(key,id);}}
