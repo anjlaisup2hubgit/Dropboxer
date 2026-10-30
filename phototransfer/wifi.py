@@ -304,6 +304,7 @@ const prog=p=>{{last=Date.now();$('zig').style.setProperty('--p',Math.min(100,p)
 const unprog=()=>setTimeout(()=>{{if(Date.now()-last>=1000)prog(0);}},1200);
 let picked=[];  // {{f, name}}: each file can be renamed before it is sent
 $('f').onchange=()=>{{picked=[...$('f').files].map(f=>({{f,name:f.name}}));$('names').textContent='';
+  if(picked.length){{const n=document.createElement('small');n.className='muted';n.textContent='Files are sent one at a time, in this order. You can rename each one first.';$('names').appendChild(n);}}
   picked.forEach(e=>{{const t=document.createElement('input');t.type='text';t.value=e.name;t.setAttribute('aria-label','File name');
     t.oninput=()=>{{e.name=t.value.trim()||e.f.name;}};$('names').appendChild(t);}});
   $('upbtn').disabled=!picked.length;}};
@@ -317,8 +318,10 @@ async function up(){{
   cancel=false;$('upbtn').disabled=true;$('stopbtn').hidden=false;log.textContent='';prog(0);let sentOk=0;
   const all=files.reduce((n,e)=>n+e.f.size,0);let done=0;
   const tot=$('total');tot.textContent='Starting '+files.length+' file(s)…';
+  // The whole queue is listed up front; each row turns into a progress line when its turn comes.
+  const rows=files.map(e=>{{const r=document.createElement('div');r.textContent=e.name+' — waiting';log.appendChild(r);return r;}});let qi=0;
   for(const {{f,name}} of files){{
-    const d=document.createElement('div');d.textContent=name+' … ('+Math.round(f.size/1048576)+' MB)';log.appendChild(d);
+    const d=rows[qi++];d.textContent=name+' … ('+Math.round(f.size/1048576)+' MB)';
     if(!f.size){{d.textContent=name+' ✗ the phone gave an empty file (0 bytes). If it is in iCloud, download it first, or save it to On My iPhone and pick it again.';d.className='bad';continue;}}
     const key='up|'+f.name+'|'+f.size+'|'+f.lastModified;  // same file picked again after a reload resumes
     let id=load(key);

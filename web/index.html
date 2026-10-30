@@ -199,6 +199,7 @@ function sender(ch,acks,p){
   let stopped=false,wake=null;const stopP=()=>new Promise(r=>wake=r);
   const input=$(p+'files'),list=$(p+'list');let picked=[];  // picked: {f, name} so each file can be renamed before sending
   input.onchange=()=>{picked=[...input.files].map(f=>({f,name:f.name}));list.textContent='';
+    if(picked.length){const n=document.createElement('small');n.className='muted';n.textContent='Files are sent one at a time, in this order. You can rename each one first.';list.appendChild(n);}
     picked.forEach(e=>{const t=document.createElement('input');t.type='text';t.value=e.name;t.setAttribute('aria-label','File name');
       t.oninput=()=>{e.name=t.value.trim()||e.f.name;};list.appendChild(t);});
     $(p+'go').disabled=!picked.length;
@@ -210,9 +211,12 @@ function sender(ch,acks,p){
     const files=picked.slice();if(!files.length)return;
     stopped=false;const sp=stopP();$(p+'go').disabled=true;$(p+'stop').hidden=false;$(p+'log').textContent='';prog(0);
     const all=files.reduce((n,e)=>n+e.f.size,0);let done=0,sentOk=0;
+    // The whole queue is listed up front; each row turns into a progress line when its turn comes.
+    const rows=files.map(e=>{const r=document.createElement('div');r.textContent=e.name+' — waiting';$(p+'log').appendChild(r);return r;});let qi=0;
     for(const {f,name} of files){
+      const d=rows[qi++];
       if(stopped)break;
-      const d=document.createElement('div');d.textContent=name+' …';$(p+'log').appendChild(d);
+      d.textContent=name+' …';
       const id=rnd(6);const ack=new Promise(r=>acks.set(id,r));
       ch.send(JSON.stringify({t:'start',id,name:name,size:f.size,mtime:f.lastModified}));
       let off=0;ch.bufferedAmountLowThreshold=1024*1024;
