@@ -17,7 +17,8 @@ SHARED = [
     "input[type=file]{color:#66727f;font-size:1rem;max-width:100%}",
     "button.pri{background:#2b6cb0;border-color:#2b6cb0;color:#fff} button.pri:hover{background:#1f5290;color:#fff}",
     "button:disabled{opacity:.4}",
-    ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}",
+    ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0}",
+    "min-height:44px;border-radius:0;",  # square buttons, like the desktop window
     ".names .item{display:flex;align-items:center;gap:10px}.names .item+.item{margin-top:-9px}",
 ]
 
