@@ -1,7 +1,6 @@
-# Dropboxer (phototransfer, milestone 1)
-New to the app? Read [HOWTO.md](HOWTO.md) for the step-by-step guide.
-
-Copy photos and videos from an iPhone to Windows over USB. Resumable, SHA-256 verified, keeps original timestamps (modified and, on Windows, creation).
+# Dropboxer (phototransfer)
+Copy photos and videos from an iPhone, Android phone, memory card or USB drive to Windows, or from a phone to the PC over Wi-Fi.
+The iPhone path works over USB. Resumable, SHA-256 verified, keeps original timestamps (modified and, on Windows, creation).
 Uses the open-source [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) to talk to Apple's AFC file service.
 
 ## Requirements
@@ -60,7 +59,7 @@ Then open the main `https://` link. In **Select** mode a **Save to Photos** butt
 Re-running the same `copy` command skips finished files and resumes interrupted ones (`*.part`).
 `--by-date` files by modified date as `YYYY/YYYY-MM/name`; a name used twice gets its device folder as a prefix.
 `gui` opens a window (tkinter, no extra dependencies): the camera roll as a grid of 200 px previews grouped by day (newest first), a kind filter (Gallery = photos and videos, the default; Music, Documents, Archives, All), a From/To date filter, a destination picker, Organize by date, a Parallel setting, the zigzag strip under the title as a progress bar (it fills left to right while files move) and Cancel. Cancel keeps the `.part` file, so a re-run resumes.
-Click a photo to select it (click a day heading to select that whole day; drag a box to select what it touches, and drag a box over selected photos to unselect them). **How to use** (top right) opens an English/Vietnamese manual with these tips and the accepted file types; the language box next to it switches the window language. Hover a photo to see its name, date and size.
+Click a photo to select it (click a day heading to select that whole day; drag a box to select what it touches, and drag a box over selected photos to unselect them). **How to use** (top right) opens an English/Vietnamese manual with these tips and the accepted file types; **What's new** next to it lists recent changes (a dot shows until you have read it); the language box switches the window language. The status line under the list says how many files came from folders other than `DCIM`. Hover a photo to see its name, date and size.
 Previews load only for the photos on screen and are cached in `~/.phototransfer/thumbs`, so reopening is fast. HEIC needs `pillow-heif` (installed with the app). Videos and very large originals (>40 MB) show a grey box with the file type instead of a preview.
 `--source-dir <folder>` swaps the phone for a local folder, so you can try everything without a device.
 
@@ -75,15 +74,17 @@ A static page plus one tiny function, for Vercel (project root directory = `web`
 Setup: create the Vercel project from `web/`, add an **Upstash Redis** store from the Vercel Marketplace (it sets `UPSTASH_REDIS_REST_URL` / `_TOKEN`), deploy. Limits: phone → PC only; the PC must keep the tab open; Chrome/Edge only on the PC (folder access); file dates are not kept; no TURN relay, so strict networks (some mobile carriers, office Wi-Fi) may not connect, and then the Wi-Fi/Tailscale server above is the fallback.
 
 ## How it works
-- `phototransfer/sources/` — transports behind one small `Source` interface (`list_files`, `read`). `iphone.py` is USB/AFC, `local.py` is for tests. A Wi-Fi or Android source plugs in here later.
+- `phototransfer/sources/` — transports behind one small `Source` interface (`list_files`, `read`): `iphone.py` (USB/AFC), `drive.py` (memory cards and USB drives), `mtp.py` (Android in File transfer mode, via the Windows shell), `local.py` (tests and `--source-dir`).
 - `phototransfer/engine.py` — resume, hashing, verification, timestamps, manifest (`.phototransfer.json` in the destination). It never touches the transport.
-- `phototransfer/cli.py` — `devices`, `list`, `copy`.
+- `phototransfer/cli.py` — `devices`, `list`, `copy`, `send`, `share`, `tray`, `gui`.
+- `phototransfer/gui.py`, `lang.py` (English/Vietnamese strings), `wifi.py` (the Wi-Fi share server and page), `tray.py`, `thumbs.py` (preview cache).
 
 Verification: bytes are hashed while streaming, then the finished `.part` file is re-read from disk and must match
 in size and SHA-256 before it is renamed into place. The modified time is set from the phone's value.
 
 ## Known limits
-- Camera roll only (`/DCIM`). No albums, edits metadata, or iCloud-only originals that are not on the phone ("Optimize iPhone Storage").
+- iPhone: camera roll only (`/DCIM`). No albums, edits metadata, or iCloud-only originals that are not on the phone ("Optimize iPhone Storage"). Cards and Android phones are also searched in other media folders (see above).
+- Android (MTP) support has not been tried on many real phones.
 - Resume spot-checks the first and last 1 MB of an existing `.part` against the phone; the middle is trusted. A mismatch restarts the file.
 - Live Photos stay as separate `.HEIC` + `.MOV` files; the `.MOV` gets `live_photo_of` in the manifest.
 - `--jobs N` copies files in parallel (default 1). Tried on a real iPhone with `--jobs 4`: 934 files (16.7 GB) copied with 0 failures.
@@ -91,7 +92,7 @@ in size and SHA-256 before it is renamed into place. The modified time is set fr
 - No HEIC to JPEG conversion yet.
 
 ## Test plan
-Automated (no phone needed): `.\.venv\Scripts\python.exe -m pytest` — copy + hash + mtime, skip on re-run, resume from partial, bad partial restarts, source failure mid-file then recovery.
+Automated (no phone needed): `.\.venv\Scripts\python.exe -m pytest` — copy + hash + mtime, skip on re-run, resume from partial, bad partial restarts, source failure mid-file then recovery, drive and MTP listing, and a check that the Wi-Fi page and the website keep the same styling.
 
 Manual with a real iPhone (not yet run, no phone was connected when this was built):
 1. `devices` shows the phone. If not: replug, unlock, tap Trust, check `Get-Service "Apple Mobile Device Service"` is Running.
