@@ -224,7 +224,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport"
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon/64.png"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#2b6cb0">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Dropboxer">
 <title>Dropboxer</title><style>
-body{{font-family:"Segoe UI",system-ui,sans-serif;margin:0;background:#eef3f8;color:#1f2933}}
+html{{-webkit-text-size-adjust:100%;text-size-adjust:100%}}
+body{{font-family:"Segoe UI",-apple-system,system-ui,sans-serif;margin:0;background:#eef3f8;color:#1f2933}}
 header{{background:#e1e9f2;border-bottom:1px solid #c9d5e2;padding:12px 16px}}
 header h1{{margin:0 auto;max-width:760px;font-size:17pt;font-weight:700;color:#1f5290}}
 #zig{{position:relative;height:18px;background:#a9c3e0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18'%3E%3Cpath d='M0 0h36L18 18z' fill='%23bcd1e8'/%3E%3C/svg%3E") 0 0/36px 18px}}
@@ -234,9 +235,10 @@ main{{margin:0 auto;padding:0 16px 24px;max-width:760px}}
 h2{{font-size:1.05rem;font-weight:700;margin:24px 0 10px}}
 .up{{background:#f8fafd;border:1px solid #c9d5e2;border-radius:10px;padding:16px;margin-bottom:14px;display:flex;flex-direction:column;align-items:flex-start;gap:14px;box-shadow:0 1px 2px rgba(31,41,51,.05)}}
 .up>*{{margin:0;max-width:100%}}
+[hidden]{{display:none!important}}
 .row{{display:flex;flex-wrap:wrap;align-items:center;gap:10px}}
 button,input[type=file]{{font-size:1rem;font-family:inherit}}
-input[type=file]{{color:#66727f;font-size:.95rem;max-width:100%}}
+input[type=file]{{color:#66727f;font-size:1rem;max-width:100%}}
 button,input[type=file]::file-selector-button{{padding:10px 18px;min-height:44px;border-radius:8px;border:1px solid #c9d5e2;background:#fff;color:#1f2933;cursor:pointer;font-weight:600;font-family:inherit;font-size:1rem}}
 input[type=file]::file-selector-button{{margin-right:12px}}
 button:hover,input[type=file]::file-selector-button:hover{{background:#e3eaf2;border-color:#2b6cb0;color:#1f5290}}
@@ -252,7 +254,8 @@ small,.muted{{color:#66727f;font-size:.9rem}} .ok{{color:#2e7d46}} .bad{{color:#
 .doc{{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;text-align:center;font-size:.7rem;word-break:break-all;overflow:hidden;color:#66727f}}
 .doc b{{font-size:1.1rem;color:#2b6cb0;margin-bottom:4px}}
 .play{{position:absolute;left:6px;bottom:4px;font-size:.8rem;color:#fff;text-shadow:0 0 3px #000}}
-.names{{display:flex;flex-direction:column;gap:6px;width:100%}}.names input{{font:inherit;font-size:1rem;padding:8px 10px;border:1px solid #c9d5e2;border-radius:8px;width:100%;box-sizing:border-box;background:#fff;color:#1f2933}}
+.names{{display:flex;flex-direction:column;gap:8px;width:100%}}.names input{{font:inherit;font-size:1rem;padding:8px 10px;border:1px solid #c9d5e2;border-radius:8px;flex:1;min-width:0;box-sizing:border-box;background:#fff;color:#1f2933}}
+.names .item{{display:flex;align-items:center;gap:10px}}.names .item+.item{{margin-top:-9px}}.names .thumb{{flex:none;width:64px;height:64px;border-radius:0;border:1px solid #c9d5e2;background:#fff;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:600;color:#66727f;overflow:hidden}}
 #bar{{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}}
 .grid a.on{{border-color:#2b6cb0;box-shadow:inset 0 0 0 2px #2b6cb0}}
 .grid a.on::after{{content:"";position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;box-sizing:border-box;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);background:#2b6cb0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.5 4.5 8.5-9.5'/%3E%3C/svg%3E") center/70% no-repeat}}
@@ -302,11 +305,18 @@ function zip(){{const f=document.createElement('form');f.method='POST';f.action=
 let cancel=false,ctl=null,last=0;
 const prog=p=>{{last=Date.now();$('zig').style.setProperty('--p',Math.min(100,p)+'%');}};
 const unprog=()=>setTimeout(()=>{{if(Date.now()-last>=1000)prog(0);}},1200);
-let picked=[];  // {{f, name}}: each file can be renamed before it is sent
-$('f').onchange=()=>{{picked=[...$('f').files].map(f=>({{f,name:f.name}}));$('names').textContent='';
+let picked=[],urls=[];  // {{f, name}}: each file can be renamed before it is sent
+const thumb=f=>{{let el;const u=()=>{{const x=URL.createObjectURL(f);urls.push(x);return x;}};
+  if(f.type.startsWith('image/')){{el=document.createElement('img');el.src=u();}}
+  else if(f.type.startsWith('video/')){{el=document.createElement('video');el.muted=true;el.playsInline=true;el.preload='metadata';el.src=u()+'#t=0.1';}}
+  else{{el=document.createElement('div');el.textContent=(f.name.split('.').pop()||'file').slice(0,5).toUpperCase();}}
+  el.className='thumb';return el;}};
+$('f').onchange=()=>{{urls.forEach(URL.revokeObjectURL);urls=[];picked=[...$('f').files].map(f=>({{f,name:f.name}}));$('names').textContent='';
   if(picked.length){{const n=document.createElement('small');n.className='muted';n.textContent='Files are sent one at a time, in this order. You can rename each one first.';$('names').appendChild(n);}}
   picked.forEach(e=>{{const t=document.createElement('input');t.type='text';t.value=e.name;t.setAttribute('aria-label','File name');
-    t.oninput=()=>{{e.name=t.value.trim()||e.f.name;}};$('names').appendChild(t);}});
+    t.oninput=()=>{{e.name=t.value.trim()||e.f.name;}};
+    t.onfocus=()=>setTimeout(()=>{{t.select();t.setSelectionRange(0,t.value.length);}},0);  // select all so typing replaces the old name
+    const row=document.createElement('div');row.className='item';row.append(thumb(e.f),t);$('names').appendChild(row);}});
   $('upbtn').disabled=!picked.length;}};
 const sleep=ms=>new Promise(s=>setTimeout(s,ms));
 function store(k,v){{try{{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}}catch(e){{}}}}
