@@ -233,7 +233,7 @@ header h1{{margin:0 auto;max-width:760px;font-size:17pt;font-weight:700;color:#1
 main{{margin:0 auto;padding:0 16px 24px;max-width:760px}}
 
 h2{{font-size:1.05rem;font-weight:700;margin:24px 0 10px}}
-.up{{background:#f8fafd;border:1px solid #c9d5e2;border-radius:10px;padding:16px;margin-bottom:14px;display:flex;flex-direction:column;align-items:flex-start;gap:14px;box-shadow:0 1px 2px rgba(31,41,51,.05)}}
+.up{{background:#f8fafd;border:1px solid #c9d5e2;border-radius:0;padding:16px;margin-bottom:14px;display:flex;flex-direction:column;align-items:flex-start;gap:14px;box-shadow:0 1px 2px rgba(31,41,51,.05)}}
 .up>*{{margin:0;max-width:100%}}
 [hidden]{{display:none!important}}
 .row{{display:flex;flex-wrap:wrap;align-items:center;gap:10px}}
@@ -254,7 +254,7 @@ small,.muted{{color:#66727f;font-size:.9rem}} .ok{{color:#2e7d46}} .bad{{color:#
 .doc{{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;text-align:center;font-size:.7rem;word-break:break-all;overflow:hidden;color:#66727f}}
 .doc b{{font-size:1.1rem;color:#2b6cb0;margin-bottom:4px}}
 .play{{position:absolute;left:6px;bottom:4px;font-size:.8rem;color:#fff;text-shadow:0 0 3px #000}}
-.names{{display:flex;flex-direction:column;gap:8px;width:100%}}.names input{{font:inherit;font-size:1rem;padding:8px 10px;border:1px solid #c9d5e2;border-radius:8px;flex:1;min-width:0;box-sizing:border-box;background:#fff;color:#1f2933}}
+.names{{display:flex;flex-direction:column;gap:8px;width:100%}}.names input{{font:inherit;font-size:1rem;padding:8px 10px;border:1px solid #c9d5e2;border-radius:0;flex:1;min-width:0;box-sizing:border-box;background:#fff;color:#1f2933}}
 .names .item{{display:flex;align-items:center;gap:10px}}.names .item+.item{{margin-top:-9px}}.names .thumb{{flex:none;width:64px;height:64px;border-radius:0;border:1px solid #c9d5e2;background:#fff;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:600;color:#66727f;overflow:hidden}}
 #bar{{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}}
 .grid a.on{{border-color:#2b6cb0;box-shadow:inset 0 0 0 2px #2b6cb0}}
