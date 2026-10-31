@@ -63,7 +63,7 @@ MANUAL = [
     ("p", "3. Select files and click Copy. The card is only read: nothing is written to it or deleted from it. An iPhone plugged in at the same time is used first."),
     ("p", "Cards and Android phones are also searched in Pictures, Movies, PRIVATE (Sony and AVCHD clips), WhatsApp and Telegram, not only DCIM. The line under the list says how many files came from those other folders."),
     ("s", "iPhone photos missing or only a few?"),
-    ("p", "If the iPhone uses iCloud Photos with Optimize iPhone Storage, older originals are only in iCloud and cannot be copied over USB. Dropboxer warns you once when it sees signs of this. On the iPhone open Settings > Photos, turn on Download and Keep Originals, wait until it finishes, then connect again."),
+    ("p", "If the iPhone uses iCloud Photos with Optimize iPhone Storage, older originals are only in iCloud and cannot be copied over USB. Boxer warns you once when it sees signs of this. On the iPhone open Settings > Photos, turn on Download and Keep Originals, wait until it finishes, then connect again."),
     ("s", "With Wi-Fi (no cable):"),
     ("p", "1. Put the phone and the PC on the same Wi-Fi."),
     ("p", "2. With no cable plugged in, the middle of the window shows a QR code and a Wi-Fi link."),
@@ -102,8 +102,8 @@ MANUAL = [
 NEWS_VERSION = 2
 NEWS = [
     ("Finds more than DCIM", "Memory cards and Android phones are now also searched in Pictures, Movies, PRIVATE (Sony and AVCHD clips), WhatsApp and Telegram. The status line says how many files came from other folders."),
-    ("iCloud Photos warning", "If an iPhone keeps photos in iCloud, older originals cannot be copied over USB. Dropboxer now tells you once, and how to fix it: Settings > Photos > Download and Keep Originals."),
-    ("Android phones", "Plug in the phone, unlock it and choose File transfer. Dropboxer checks there is room in the temp folder before copying each file. Not yet tried on many phones: please report problems."),
+    ("iCloud Photos warning", "If an iPhone keeps photos in iCloud, older originals cannot be copied over USB. Boxer now tells you once, and how to fix it: Settings > Photos > Download and Keep Originals."),
+    ("Android phones", "Plug in the phone, unlock it and choose File transfer. Boxer checks there is room in the temp folder before copying each file. Not yet tried on many phones: please report problems."),
     ("If Windows blocks the app", "PhoneTransfer.exe is not code-signed. If Windows says it protected your PC, click More info, then Run anyway."),
 ]
 # PC to iPhone destinations. The Music app cannot be filled over USB, so music goes into the Documents
@@ -113,7 +113,7 @@ SEND_TO = {
     "VLC (music player)": "org.videolan.vlc-ios",
     "Documents by Readdle": "com.readdle.ReaddleDocsIPad",
 }
-APP_NAME = "Dropboxer"
+APP_NAME = "Boxer"
 BTN_W = 14  # every plain button has the same width (fits "28 Oct 2026 ▾" and the Vietnamese labels)
 # Warm map-paper background, thin lines, one grass-green accent.
 PAPER = "#f8fafd"  # inputs, buttons and pop-ups: a touch lighter than the window
@@ -1724,12 +1724,12 @@ def run(source_dir: str | None = None, udid: str | None = None) -> int:
     except Exception:
         pass
     try:  # own taskbar identity, so the window shows its icon rather than python's
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Dropboxer")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Boxer")
     except Exception:
         pass
     root = tk.Tk()
     try:
-        root.iconbitmap(default=str(Path(__file__).with_name("dropboxer.ico")))
+        root.iconbitmap(default=str(Path(__file__).with_name("boxer.ico")))
     except tk.TclError:
         pass
     try:

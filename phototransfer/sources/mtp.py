@@ -106,7 +106,7 @@ class MtpSource(Source):
         self._index: dict[str, object] = {}   # file path -> shell item, filled by list_files
         self._staged: dict[str, list] = {}    # path -> [local copy, readers using it]
         self._last: str | None = None
-        self._tmp = Path(tempfile.mkdtemp(prefix="dropboxer-mtp-"))
+        self._tmp = Path(tempfile.mkdtemp(prefix="boxer-mtp-"))
         self._n = 0
 
     # ---- on the COM thread --------------------------------------------------------------------

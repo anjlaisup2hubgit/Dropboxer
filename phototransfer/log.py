@@ -1,12 +1,12 @@
-"""A plain log file (~/.phototransfer/dropboxer.log) so a failed send to the phone can be read afterwards."""
+"""A plain log file (~/.phototransfer/boxer.log) so a failed send to the phone can be read afterwards."""
 from __future__ import annotations
 
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-LOG_FILE = Path.home() / ".phototransfer" / "dropboxer.log"
-log = logging.getLogger("dropboxer")
+LOG_FILE = Path.home() / ".phototransfer" / "boxer.log"
+log = logging.getLogger("boxer")
 
 
 def setup() -> None:

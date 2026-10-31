@@ -88,7 +88,7 @@ def run_tray(folder: Path, port: int = 8765) -> int:
         pystray.MenuItem("Start with Windows", toggle_autostart, checked=lambda it: autostart_enabled()),
         pystray.MenuItem("Quit", quit_),
     )
-    icon = pystray.Icon("phototransfer", Image.open(io.BytesIO(app_icon(64, True))), "Dropboxer", menu)
+    icon = pystray.Icon("phototransfer", Image.open(io.BytesIO(app_icon(64, True))), "Boxer", menu)
 
     def watch_received() -> None:
         import time
@@ -100,7 +100,7 @@ def run_tray(folder: Path, port: int = 8765) -> int:
                 n = len(server.received) - seen
                 seen = len(server.received)
                 try:
-                    icon.notify(f"{n} file(s) received", "Dropboxer")
+                    icon.notify(f"{n} file(s) received", "Boxer")
                 except Exception:
                     pass
             if server._httpd is None:

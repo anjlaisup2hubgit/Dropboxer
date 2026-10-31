@@ -182,7 +182,7 @@ def to_jpeg(data: bytes, max_side: int = VIEW_MAX) -> bytes | None:
 
 
 def app_icon(size: int, rounded: bool = False) -> bytes:
-    """The one Dropboxer icon: two blue swap arrows on white with a light-blue outline. Drawn big and shrunk for
+    """The one Boxer icon: two blue swap arrows on white with a light-blue outline. Drawn big and shrunk for
     smooth edges. `rounded` leaves the corners transparent (app windows); home-screen icons stay square."""
     from PIL import Image, ImageDraw
 
@@ -213,7 +213,7 @@ SERVICE_WORKER = "self.addEventListener('install',()=>self.skipWaiting());\n" \
 def manifest(token: str) -> bytes:
     base = f"/{quote(token)}/"
     return json.dumps({
-        "name": "Dropboxer", "short_name": "Dropboxer", "start_url": base, "scope": base, "display": "standalone",
+        "name": "Boxer", "short_name": "Boxer", "start_url": base, "scope": base, "display": "standalone",
         "background_color": "#eef3f8", "theme_color": "#2b6cb0",
         "icons": [{"src": f"{base}icon/192.png", "sizes": "192x192", "type": "image/png"},
                   {"src": f"{base}icon/512.png", "sizes": "512x512", "type": "image/png"}],
@@ -222,8 +222,8 @@ def manifest(token: str) -> bytes:
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon/64.png"><link rel="apple-touch-icon" href="icon/180.png"><meta name="theme-color" content="#2b6cb0">
-<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Dropboxer">
-<title>Dropboxer</title><style>
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Boxer">
+<title>Boxer</title><style>
 html{{-webkit-text-size-adjust:100%;text-size-adjust:100%}}
 body{{font-family:"Segoe UI",-apple-system,system-ui,sans-serif;margin:0;background:#eef3f8;color:#1f2933}}
 header{{background:#e1e9f2;border-bottom:1px solid #c9d5e2;padding:12px 16px}}
@@ -260,7 +260,7 @@ small,.muted{{color:#66727f;font-size:.9rem}} .ok{{color:#2e7d46}} .bad{{color:#
 .grid a.on{{border-color:#2b6cb0;box-shadow:inset 0 0 0 2px #2b6cb0}}
 .grid a.on::after{{content:"";position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;box-sizing:border-box;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);background:#2b6cb0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.5 4.5 8.5-9.5'/%3E%3C/svg%3E") center/70% no-repeat}}
 </style></head><body>
-<header><h1>Dropboxer</h1></header><div id="zig"><i></i></div><main>
+<header><h1>Boxer</h1></header><div id="zig"><i></i></div><main>
 <h2>Send to this PC</h2><div class="up">
 <b>Photos, videos and documents</b>
 <small>If the tick will not press, save the file to Files first.</small>

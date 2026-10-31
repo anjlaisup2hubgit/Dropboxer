@@ -1,4 +1,4 @@
-# Dropboxer (phototransfer)
+# Boxer (phototransfer)
 Copy photos and videos from an iPhone, Android phone, memory card or USB drive to Windows, or from a phone to the PC over Wi-Fi.
 The iPhone path works over USB. Resumable, SHA-256 verified, keeps original timestamps (modified and, on Windows, creation).
 Uses the open-source [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) to talk to Apple's AFC file service.
